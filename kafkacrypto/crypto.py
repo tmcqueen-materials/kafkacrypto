@@ -3,6 +3,7 @@ import inspect
 import pysodium
 import time
 import msgpack
+import logging
 from kafka import TopicPartition
 import kafka.serializer
 from kafkacrypto.base import KafkaCryptoBase
@@ -103,6 +104,7 @@ class KafkaCrypto(KafkaCryptoBase):
           if (isinstance(topic,(str,))):
             topic = topic.encode('utf-8')
           self._tps_offsets[topic] = msg.offset+1
+          self._logger.debug("Processing message: %s", msg)
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
             # A new receiver: send current key
@@ -116,12 +118,16 @@ class KafkaCrypto(KafkaCryptoBase):
                 s = s + self._pgens[root]['value'].secret()
               k,v = self._cryptokey.encrypt_key(si, s, root, msgkey=msg.key, msgval=msg.value)
               if (not (k is None)) or (not (v is None)):
+                self._logger.info("Sending current encryption keys for root=%s to new receiver.", root)
                 self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
+              else:
+                self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # A new key
             nki,nk = self._cryptokey.decrypt_key(root,msgkey=msg.key,msgval=msg.value)
             if not (nk is None):
+              self._logger.info("Received new encryption key for root=%s, key index=%s", root, nki)
               # do not clopper other keys that may exist
               if not (root in self._cgens.keys()):
                 self._cgens[root] = {}
@@ -151,8 +157,10 @@ class KafkaCrypto(KafkaCryptoBase):
             k,v = self._cryptokey.encrypt_key(si, s, root, msgkey=msgkey, msgval=self._receivers[root][msgkey])
             if (not (k is None)) or (not (v is None)):
               self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
+              self._logger.info("Sending new encryption keys for root=%s to current receiver.", root)
             else:
               todel.append(msgkey)
+              self._logger.info("Could not send encryption keys for root=%s to new receiver, deleting receiver.", root)
           for msgkey in todel:
             self._receivers[root].pop(msgkey)
       self._new_pgens = {}
@@ -170,6 +178,7 @@ class KafkaCrypto(KafkaCryptoBase):
             root = tk[:-len(self.TOPIC_SUFFIX_KEYS)]
             k,v = self._cryptokey.signed_epk(root)
             if not (k is None) or not (v is None):
+              self._logger.info("Sending new subscribe request for root=%s", root)
               self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
         self._tps_updated = False
       self._lock.release()
@@ -211,6 +220,8 @@ class KafkaCrypto(KafkaCryptoBase):
         salt = gen.salt()
         key,nonce = gen.generate(salt=salt) 
         msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)])
+      except Exception as e:
+        self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       finally:
         self._parent._lock.release()
       return msg
