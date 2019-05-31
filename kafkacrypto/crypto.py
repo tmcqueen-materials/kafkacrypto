@@ -118,7 +118,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 s = s + self._pgens[root]['value'].secret()
               k,v = self._cryptokey.encrypt_key(si, s, root, msgkey=msg.key, msgval=msg.value)
               if (not (k is None)) or (not (v is None)):
-                self._logger.info("Sending current encryption keys for root=%s to new receiver.", root)
+                self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, msg.key)
                 self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
               else:
                 self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
@@ -127,7 +127,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # A new key
             nki,nk = self._cryptokey.decrypt_key(root,msgkey=msg.key,msgval=msg.value)
             if not (nk is None):
-              self._logger.info("Received new encryption key for root=%s, key index=%s", root, nki)
+              self._logger.info("Received new encryption key for root=%s, key index=%s, msgkey=%s", root, nki, msg.key)
               # do not clopper other keys that may exist
               if not (root in self._cgens.keys()):
                 self._cgens[root] = {}
@@ -157,10 +157,10 @@ class KafkaCrypto(KafkaCryptoBase):
             k,v = self._cryptokey.encrypt_key(si, s, root, msgkey=msgkey, msgval=self._receivers[root][msgkey])
             if (not (k is None)) or (not (v is None)):
               self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
-              self._logger.info("Sending new encryption keys for root=%s to current receiver.", root)
+              self._logger.info("Sending new encryption keys for root=%s to current receiver msgkey=%s.", root, msgkey)
             else:
               todel.append(msgkey)
-              self._logger.info("Could not send encryption keys for root=%s to new receiver, deleting receiver.", root)
+              self._logger.info("Could not send encryption keys for root=%s to current receiver, msgkey=%s, deleting receiver.", root, msgkey)
           for msgkey in todel:
             self._receivers[root].pop(msgkey)
       self._new_pgens = {}
@@ -178,7 +178,7 @@ class KafkaCrypto(KafkaCryptoBase):
             root = tk[:-len(self.TOPIC_SUFFIX_KEYS)]
             k,v = self._cryptokey.signed_epk(root)
             if not (k is None) or not (v is None):
-              self._logger.info("Sending new subscribe request for root=%s", root)
+              self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
               self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
         self._tps_updated = False
       self._lock.release()

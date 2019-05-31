@@ -137,7 +137,7 @@ class CryptoKey(object):
       tchain = self.__spk_chain.copy()
       tchain.append(msg)
       msg = msgpack.packb(tchain)
-      return (None, msg)
+      return (self.__spk, msg)
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass

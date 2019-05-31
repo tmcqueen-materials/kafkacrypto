@@ -91,12 +91,12 @@ class KafkaCryptoController(KafkaCryptoBase):
             topic = topic.encode('utf-8')
           if topic[-len(self.TOPIC_SUFFIX_SUBS):] == self.TOPIC_SUFFIX_SUBS:
             root = topic[:-len(self.TOPIC_SUFFIX_SUBS)]
-       	    self._logger.debug("Processing subscribe message, root=%s", root)
+       	    self._logger.debug("Processing subscribe message, root=%s, msgkey=%s", root, msg.key)
             # New consumer encryption key. Validate
             k,v = self._provisioners.reencrypt_request(root, cryptokey=self._cryptokey, msgkey=msg.key, msgval=msg.value)
             # Valid request, resign and retransmit
             if (not (k is None)) or (not (v is None)):
-              self._logger.info("Valid consumer key request on topic=%s, root=%s. Resending to %s", topic, root, root + self.TOPIC_SUFFIX_REQS)
+              self._logger.info("Valid consumer key request on topic=%s, root=%s, msgkey=%s. Resending to topic=%s, msgkey=%s", topic, root, msg.key, root + self.TOPIC_SUFFIX_REQS, k)
               self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
             else:
               self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: ", topic, root, msg)
@@ -107,9 +107,7 @@ class KafkaCryptoController(KafkaCryptoBase):
 
       # Third, commit offsets
       if (self._kc.config['group_id'] is not None):
-        self._logger.debug("Committing offsets.")
         self._kc.commit()
-       	self._logger.debug("Committed offsets.")
   
       # Finally, loop back to poll again
   # end of __process_mgmt_messages
