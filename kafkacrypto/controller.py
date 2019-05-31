@@ -26,22 +26,30 @@ class KafkaCryptoController(KafkaCryptoBase):
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
+         config (str,dict): Either a filename in which configuration
+                            data is a stored, or a dict of config
+                            parameters. Set to None to load from the
+       	       	       	    default location based on nodeID.
        cryptokey (str,obj): Either a filename in which the crypto
-                            private key is stored, or an object 
+                            private key is stored, or an object
                             implementing the necessary functions
-                            (encrypt_key, decrypt_key, sign_spk)
+                            (encrypt_key, decrypt_key, sign_spk).
+       	       	       	    Set	to None	to load from the default
+       	       	       	    location based on nodeID.
     provisioners (str,obj): Either a filename in which the allowed
                             provisioners are stored, or an object
                             implementing the necessary functions
-                            (reencrypt_request)
+                            (reencrypt_request). Set to None to
+                            load from the default location based
+                            on nodeID. 
   """
 
   def __init__(self, nodeID, kp, kc, config=None, cryptokey=None, provisioners=None):
     super().__init__(nodeID, kp, kc, config, cryptokey)
     if (self._kc.config['enable_auto_commit'] != False):
-      print("Warning: Auto commit not disabled, controller may miss messages.")
+      self._logger.warning("Auto commit not disabled, controller may miss messages.")
     if (self._kc.config['group_id'] is None):
-      print("Warning: Group ID not set, controller may miss messages.")
+      self._logger.warning("Group ID not set, controller may miss messages.")
     if (provisioners is None):
       provisioners = nodeID + ".provisioners"
     if (isinstance(provisioners,(str,))):
@@ -61,35 +69,47 @@ class KafkaCryptoController(KafkaCryptoBase):
     while True:
       # First, (Re)subscribe if needed
       if ((time()-self._last_subscribed_time) >= self.MGMT_SUBSCRIBE_INTERVAL):
+        self._logger.debug("Initiating resubscribe...")
         trx = "(.*\\" + self.TOPIC_SUFFIX_SUBS.decode('utf-8') + "$)"
         self._kc.subscribe(pattern=trx)
         self._last_subscribed_time = time()
+        self._logger.info("Resubscribed to topics.")
 
       # Second, process messages
       # we are the only thread ever using _kc, _kp, so we do not need the lock to use them
+      self._logger.debug("Initiating poll...")
       msgs = self._kc.poll(timeout_ms=self.MGMT_POLL_INTERVAL, max_records=self.MGMT_POLL_RECORDS)
+      self._logger.debug("Poll complete with %i msgsets.", len(msgs))
       # but to actually process messages, we need the lock
       for tp,msgset in msgs.items():
+        self._logger.debug("Topic %s Partition %i has %i messages", tp.topic, tp.partition, len(msgset))
         self._lock.acquire()
         for msg in msgset:
+          self._logger.debug("Processing message: %s", msg)
           topic = msg.topic
           if (isinstance(topic,(str,))):
             topic = topic.encode('utf-8')
           if topic[-len(self.TOPIC_SUFFIX_SUBS):] == self.TOPIC_SUFFIX_SUBS:
             root = topic[:-len(self.TOPIC_SUFFIX_SUBS)]
+       	    self._logger.debug("Processing subscribe message, root=%s", root)
             # New consumer encryption key. Validate
             k,v = self._provisioners.reencrypt_request(root, cryptokey=self._cryptokey, msgkey=msg.key, msgval=msg.value)
             # Valid request, resign and retransmit
             if (not (k is None)) or (not (v is None)):
+              self._logger.info("Valid consumer key request on topic=%s, root=%s. Resending to %s", topic, root, root + self.TOPIC_SUFFIX_REQS)
               self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
+            else:
+              self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: ", topic, root, msg)
           else:
             # unknown object
-            print("Unknown topic type in message: ", msg)
+            self._logger.warning("Unknown topic type in message: %s", msg)
         self._lock.release()
 
       # Third, commit offsets
       if (self._kc.config['group_id'] is not None):
+        self._logger.debug("Committing offsets.")
         self._kc.commit()
+       	self._logger.debug("Committed offsets.")
   
       # Finally, loop back to poll again
   # end of __process_mgmt_messages

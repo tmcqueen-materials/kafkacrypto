@@ -20,18 +20,26 @@ class KafkaCrypto(KafkaCryptoBase):
                             handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
-        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for      
+        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready ofor      
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
+         config (str,dict): Either a filename in which configuration
+                            data is a stored, or a dict of config
+                            parameters. Set to None to load from the
+                            default location based on nodeID.
        cryptokey (str,obj): Either a filename in which the crypto
-                            private key is stored, or an object 
-                            implementing the necessary functions
-                            (encrypt_key, decrypt_key, sign_spk)
+                            private key is stored, or an object
+                            implementing the necessary functions 
+                            (encrypt_key, decrypt_key, sign_spk).
+                            Set to None to load from the default
+                            location based on nodeID.
             seed (str,obj): Either a filename in which the source
                             ratchet seed is stored, or an object
                             implementing the necessary functions
-                            (increment, generate).
+                            (increment, generate). Set to None to
+                            load from the default location based
+                            on nodeID.
   """
 
   #
@@ -123,7 +131,7 @@ class KafkaCrypto(KafkaCryptoBase):
               self._cgens[root][nki]['value'] = KeyGenerator.value_generator(nk)
           else:
             # unknown object
-            print("Unknown topic type in message: ", msg)
+            self._logger.warning("Unknown topic type in message: %s", msg)
         self._lock.release()
   
       # Second, walk through _new_pgens and send accordingly
@@ -243,6 +251,7 @@ class KafkaCrypto(KafkaCryptoBase):
             time.sleep(self.WAIT_INTERVAL)
             self._parent._lock.acquire()
         if not (root in self._parent._cgens.keys()) or not (ki in self._parent._cgens[root].keys()):
+          self._logger.info("No decryption key found for root=%s, key index=%s. Returning encrypted message.", root, ki)
           raise ValueError
         gen = self._parent._cgens[root][ki][self._kv]
         key,nonce = gen.generate(salt=salt)
@@ -277,4 +286,5 @@ class KafkaCrypto(KafkaCryptoBase):
       self._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
       self._tps_offsets[ntp] = 0
       self._tps_updated = True
+    self._logger.info("Refreshed producer key for topic=%s, root=%s. New key index=%s", topic, root, ki)
     return self._pgens[root]

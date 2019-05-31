@@ -1,6 +1,7 @@
 from threading import Lock
 import inspect
 import msgpack
+import logging
 from kafka import KafkaProducer, KafkaConsumer
 from kafkacrypto.exceptions import KafkaCryptoBaseError
 from kafkacrypto.cryptokey import CryptoKey
@@ -18,10 +19,16 @@ class KafkaCryptoBase(object):
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
+         config (str,dict): Either a filename in which configuration
+                            data is a stored, or a dict of config
+                            parameters. Set to None to load from the
+                            default location based on nodeID.
        cryptokey (str,obj): Either a filename in which the crypto
                             private key is stored, or an object 
                             implementing the necessary functions
-                            (encrypt_key, decrypt_key, sign_spk)
+                            (encrypt_key, decrypt_key, sign_spk).
+                            Set to None to load from the default
+                            location based on nodeID.
   """
 
   #
@@ -66,6 +73,7 @@ class KafkaCryptoBase(object):
     self._kp = kp
     self._kc = kc
     self._cryptokey = cryptokey 
+    self._logger = logging.getLogger(__name__)
 
   def __config(self, config):
     # config should be a map with names that we can override defaults with.

@@ -2,6 +2,7 @@ from time import time
 import traceback
 import pysodium
 import msgpack
+import logging
 from kafkacrypto.chain import process_chain
 
 class CryptoKey(object):
@@ -26,6 +27,7 @@ class CryptoKey(object):
   #       __esk: dict of encrypting private (secret) keys (by topic)
   #
   def __init__(self, file):
+    self.__logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
       file = open(file, 'rb+', 0)
     self.__file = file
@@ -77,7 +79,7 @@ class CryptoKey(object):
       tchain.append(msg)
       msg = msgpack.packb(tchain)
     except Exception as e:
-      print("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      self.__logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return (None, None)
     return (msgkey, msg)
 
@@ -110,7 +112,7 @@ class CryptoKey(object):
           return (msg[0], msg[1])
       raise ValueError
     except Exception as e:
-      print("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      self.__logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
 
     return (None, None)
@@ -137,7 +139,7 @@ class CryptoKey(object):
       msg = msgpack.packb(tchain)
       return (None, msg)
     except Exception as e:
-      print("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      self.__logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
     return (None, None)
 
@@ -170,5 +172,5 @@ class CryptoKey(object):
       self.__file.flush()
       self.__spk_chain = msgpack.unpackb(newchain)
     except Exception as e:
-      print("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      self.__logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
