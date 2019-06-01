@@ -173,14 +173,14 @@ with open(nodeID + ".crypto", "wb") as f:
 DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, used to find root name and subs/keys
                'TOPIC_SUFFIX_REQS': b'.reqs', # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': b'.keys',
-               'TOPIC_SUFFIX_SUBS': b'.subs', # change to be same as REQS if this is a controller-less setup
+               'TOPIC_SUFFIX_SUBS': b'.reqs', # change to be .subs for a controller-based setup
                'MGMT_POLL_INTERVAL': 500, # in ms
                'MGMT_POLL_RECORDS': 8,    # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
-               'MGMT_FULL_KEYINDEX': True,
+               'MGMT_LONG_KEYINDEX': True,
              }
 if (sole == True):
-  DEFAULTS['MGMT_FULL_KEYINDEX'] = False
+  DEFAULTS['MGMT_LONG_KEYINDEX'] = False
 
 with open(nodeID + ".config", "wb") as f:
   f.write(msgpack.packb(DEFAULTS))
