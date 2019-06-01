@@ -164,10 +164,10 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, us
                'MGMT_POLL_INTERVAL': 500, # in ms
                'MGMT_POLL_RECORDS': 8,    # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
-               'MGMT_FULL_KEYINDEX': True,
+               'MGMT_LONG_KEYINDEX': True,
              }
 if (sole == True):
-  DEFAULTS['MGMT_FULL_KEYINDEX'] = False
+  DEFAULTS['MGMT_LONG_KEYINDEX'] = False
 
 with open(nodeID + ".config", "wb") as f:
   f.write(msgpack.packb(DEFAULTS))
