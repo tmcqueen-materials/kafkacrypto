@@ -28,7 +28,6 @@ _keys = {    'producer': 'producer',
              'controller': 'consumer',
              }
 
-
 # Get ROT first
 password = ''
 while len(password) < 12:
@@ -117,10 +116,13 @@ else:
 
 # Check we have appropriate chains
 if (choice == 1):
-  _chainrot = _rot
-  _msgchainrot = _msgrot
+  # Controllers must be signed by ROT
+  _msgchkrot = _msgrot
+else:
+  # Everyone else by Chain ROT (may = ROT)
+  _msgchkrot = _msgchainrot
 assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. This should not happen with simple-provision, please report as a bug.'
-pk = process_chain(b'',_msgchainrot,_msgchains[key],b'')
+pk = process_chain(b'',_msgchkrot,_msgchains[key],b'')
 assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your passwords correctly?'
 
 topics = None
@@ -166,7 +168,7 @@ with open(nodeID + ".crypto", "wb") as f:
   msg = [time()+_lifetime, poison, pk]
   msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
   chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
-  f.write(msgpack.packb([_lifetime,_msgrot,_msgchainrot,sk,chain]))
+  f.write(msgpack.packb([_lifetime,_msgrot,_msgchkrot,sk,chain]))
   print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
 
 # Third, write config defaults
