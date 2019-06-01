@@ -17,7 +17,8 @@ class CryptoKey(object):
   #
   # Per instance, defined in init
   #      __file: File object
-  #       __rot: Root of Trust
+  #       __rot: Root of Trust for received messages
+  #  __chainrot: Root of Trust for our trust chain
   #    __maxage: Maximum age (seconds)
   # __spk_chain: signing public key chain to root of trust, as array
   #       __spk: signing public key
@@ -35,7 +36,7 @@ class CryptoKey(object):
     contents = msgpack.unpackb(self.__file.read())
     self.__maxage = contents[0]
     self.__rot = contents[1]
-    self.__msgrot = contents[2]
+    self.__chainrot = contents[2]
     self.__esk = {}
     self.__epk = {}
     self.__ssk = contents[3]
@@ -154,7 +155,7 @@ class CryptoKey(object):
     # first must check it is a valid chain ending in our signing public key.
     #
     try:
-      pk = process_chain(b'',self.__msgrot,newchain,b'')
+      pk = process_chain(b'',self.__chainrot,newchain,b'')
       if (len(pk) < 3 or pk[2] != self.__spk):
         raise ValueError
       # If we get here, it is a valid chain. So now we need
@@ -168,7 +169,7 @@ class CryptoKey(object):
         if (min_max_age != 0 and cpk[0]<min_max_age):
           raise ValueError
       self.__file.seek(0,0)
-      self.__file.write(msgpack.packb([self.__maxage, self.__rot, self.__msgrot, self.__ssk, newchain]))
+      self.__file.write(msgpack.packb([self.__maxage, self.__rot, self.__chainrot, self.__ssk, newchain]))
       self.__file.flush()
       self.__spk_chain = msgpack.unpackb(newchain)
     except Exception as e:
