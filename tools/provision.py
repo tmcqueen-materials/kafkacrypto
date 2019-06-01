@@ -60,6 +60,15 @@ while choice<1 or choice>4:
   except ValueError:
     pass
 
+if (choice == 2 or choice == 4):
+  sole = ''
+  while len(sole)<1:
+    sole = input('Will the producer be the only producer of the topics it produces on (y/N)? ')
+  if sole[0].lower() == 'y':
+    sole = True
+  else:
+    sole = False
+
 if (choice == 3 or choice == 4):
   limited = ''
   while len(limited)<1:
@@ -155,6 +164,10 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, us
                'MGMT_POLL_INTERVAL': 500, # in ms
                'MGMT_POLL_RECORDS': 8,    # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
+               'MGMT_FULL_KEYINDEX': True,
              }
+if (sole == True):
+  DEFAULTS['MGMT_FULL_KEYINDEX'] = False
+
 with open(nodeID + ".config", "wb") as f:
   f.write(msgpack.packb(DEFAULTS))

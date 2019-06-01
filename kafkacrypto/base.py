@@ -41,6 +41,7 @@ class KafkaCryptoBase(object):
                'MGMT_POLL_INTERVAL': 500,      # in ms
                'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
+               'MGMT_LONG_KEYINDEX': False,
              }
 
   def __init__(self, nodeID, kp, kc, config, cryptokey):

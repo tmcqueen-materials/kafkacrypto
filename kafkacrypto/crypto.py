@@ -287,6 +287,16 @@ class KafkaCrypto(KafkaCryptoBase):
       topic = topic.encode('utf-8')
     root = self.get_root(topic)
     ki,kg,vg = self._seed.get_key_value_generators(root)
+    if (self.MGMT_LONG_KEYINDEX == True):
+      if (isinstance(ki, (int,))):
+        ki = ki.to_bytes(16, byteorder='big')
+      elif (isinstance(ki, (str,))):
+        ki = ki.encode('utf-8')
+      elif (isinstance(ki, (bytes, bytearray))):
+        pass
+      else:
+        ki = bytes(ki)
+      ki = pysodium.crypto_generichash(self._nodeID_bytes + ki)
     self._pgens[root] = {}
     self._pgens[root]['keyidx'] = ki
     self._pgens[root]['key'] = kg

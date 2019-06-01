@@ -16,6 +16,6 @@ while len(password) < 12:
 prov = PasswordProvisioner(password, _rot)
 for kn in _usages.keys():
   key=prov._pk[kn]
-  poison = msgpack.packb([_usages[kn]])
+  poison = msgpack.packb([[b'usages',_usages[kn]]])
   tosign = msgpack.packb([0,poison,key])
   print(kn, '(', hexlify(key), '):', hexlify(tosign))

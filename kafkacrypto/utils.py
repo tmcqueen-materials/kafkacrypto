@@ -42,3 +42,29 @@ class PasswordProvisioner(object):
       self._pk[key], self._sk[key] = pysodium.crypto_sign_seed_keypair(self._seed[key])
       print("  Signing Public Key (", key, "): ", hexlify(self._pk[key]))
     print("")
+
+class PasswordROT(object):
+  """The PasswordROT class instantiates a root of trust keypair.
+
+  Alternative versions using, e.g. security keys or similar, can also be written.
+
+  Keyword Arguments:
+  password (str): Password from which to derive the secret key.
+  """
+  # Constrained devices cannot use larger numbers than interactive
+  _ops = pysodium.crypto_pwhash_scryptsalsa208sha256_OPSLIMIT_INTERACTIVE
+  _mem = pysodium.crypto_pwhash_scryptsalsa208sha256_MEMLIMIT_INTERACTIVE
+
+  def __init__(self, password):
+    if (isinstance(password,(str,))):
+      password = password.encode('utf-8')
+    self._salt = pysodium.crypto_hash_sha256(b'Root of Trust' + password)[0:pysodium.crypto_pwhash_scryptsalsa208sha256_SALTBYTES]
+    print("")
+    print("Deriving root key with:")
+    print("  opsl = ", self._ops)
+    print("  meml = ", self._mem)
+    print("  salt = ", hexlify(self._salt))
+    self._seed = pysodium.crypto_pwhash_scryptsalsa208sha256(pysodium.crypto_sign_SEEDBYTES, password, self._salt, opslimit=self._ops, memlimit=self._mem)
+    self._pk, self._sk = pysodium.crypto_sign_seed_keypair(self._seed)
+    print("  Root Public Key: ", hexlify(self._pk))
+    print("")
