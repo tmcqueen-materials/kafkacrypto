@@ -169,7 +169,7 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, us
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
                'MGMT_LONG_KEYINDEX': True,
              }
-if (sole == True):
+if ((choice == 2 or choice == 4) and sole == True):
   DEFAULTS['MGMT_LONG_KEYINDEX'] = False
 
 with open(nodeID + ".config", "wb") as f:
