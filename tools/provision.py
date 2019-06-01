@@ -19,16 +19,16 @@ _msgrot = msgpack.packb([0,b'\x90',_rot])
 _chainrot = _rot
 _msgchainrot = _msgrot
 _signedprov = { 'producer': unhexlify(b'signed key here'),
-            'consumer': unhexlify(b'signed key here'),
-            'prodcon': unhexlify(b'signed key here'),
-          }
-_keys =	{    'producer': 'producer',
-       	     'consumer': 'consumer',
-       	     'prodcon':	'prodcon',
-             'prodcon-limited': 'prodcon',
-       	     'consumer-limited': 'consumer',
-       	     'controller': 'consumer',
-       	     }
+                'consumer': unhexlify(b'signed key here'),
+                'prodcon': unhexlify(b'signed key here'),
+                }
+_keys =     {    'producer': 'producer',
+                 'consumer': 'consumer',
+                 'prodcon': 'prodcon',
+                 'prodcon-limited': 'prodcon',
+                 'consumer-limited': 'consumer',
+                 'controller': 'consumer',
+                 }
 _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]]),
                'consumer': msgpack.packb([_signedprov[_keys['consumer']]]),
                'prodcon': msgpack.packb([_signedprov[_keys['prodcon']]]),
@@ -36,13 +36,13 @@ _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]]),
                'consumer-limited': msgpack.packb([_signedprov[_keys['consumer-limited']]]),
                'controller': msgpack.packb([_signedprov[_keys['controller']]]),
              }
-_usages = {  'producer': [b'key-encrypt'],
-       	     'consumer': [b'key-encrypt-request',b'key-encrypt-subscribe'],
-      	     'prodcon': [b'key-encrypt',b'key-encrypt-request',b'key-encrypt-subscribe'],
-             'prodcon-limited': [b'key-encrypt',b'key-encrypt-subscribe'],
-       	     'consumer-limited': [b'key-encrypt-subscribe'],
-       	     'controller': [b'key-encrypt-request'],
-       	     }
+_usages = {      'producer': [b'key-encrypt'],
+                 'consumer': [b'key-encrypt-request',b'key-encrypt-subscribe'],
+                 'prodcon': [b'key-encrypt',b'key-encrypt-request',b'key-encrypt-subscribe'],
+                 'prodcon-limited': [b'key-encrypt',b'key-encrypt-subscribe'],
+                 'consumer-limited': [b'key-encrypt-subscribe'],
+                 'controller': [b'key-encrypt-request'],
+                 }
 
 print('Beginning provisioning process. This should be run on the device being provisioned.')
 nodeID = ''
@@ -100,10 +100,13 @@ prov = PasswordProvisioner(password, _rot)
 
 # Check we have appropriate chains
 if (choice == 1):
-  _chainrot = _rot
-  _msgchainrot = _msgrot
+  # Controllers must be signed by ROT
+  _msgchkrot = _msgrot
+else:
+  # Everyone else by the Chain ROT (may = ROT)
+  _msgchkrot = _msgchainrot
 assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
-pk = process_chain(b'',_msgchainrot,_msgchains[key],b'')
+pk = process_chain(b'',_msgchkrot,_msgchains[key],b'')
 assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
 
 topics = None
@@ -153,7 +156,7 @@ with open(nodeID + ".crypto", "wb") as f:
   msg = [time()+_lifetime, poison, pk]
   msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
   chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
-  f.write(msgpack.packb([_lifetime,_msgrot,_msgchainrot,sk,chain]))
+  f.write(msgpack.packb([_lifetime,_msgrot,_msgchkrot,sk,chain]))
   print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
 
 # Third, write config defaults
