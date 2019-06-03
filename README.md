@@ -32,7 +32,7 @@ consumer = KafkaConsumer(...,key_deserializer=kc.getKeyDeserializer(), value_des
 
 And that's it! Your producers and consumers should function as normal, but all traffic within Kafka is encrypted. 
 
-If automatic topic creation is disabled, then one more action is needed. For each "root topic" you must create the requisite key-passing topics. By default these are `root.reqs` and `root.keys`, where root is replaced with the root topic name.
+If automatic topic creation is disabled, then one more action is needed. For each "root topic" you must create the requisite key-passing topics. By default these are `root.reqs` and `root.keys`, where root is replaced with the root topic name. It is safe to enable regular log compaction on these topics.
 
 ## Root Topics
 kafkacrypto uses unique keys on a per-"root topic" basis. A root topic is defined as the topic name before the first user-defined separator. The default separator is "`.`". Thus all of these:  
@@ -45,7 +45,7 @@ have the same root topic of `example001`, whereas `example001_baz.bar.foo` has t
 ## Undecryptable Messages
 kafkacrypto is designed so that messages being sent can **always** be encrypted once a KafkaCrypto object is successfully created. However, it is possible for a consumer to receive a message for which it does not have a decryption key, i.e. an undecryptable message. This is most often because the asynchronous key exchange process has not completed before the message is received, or because the consumer is not authorized to receive on that topic. 
 
-To handle this scenario, all deserialized messages are returned as KafkaMessage objects. The `.isCleartext()` method can be used to determine whether the message component was successfully decrypted or not:
+To handle this scenario, all deserialized messages are returned as [KafkaCryptoMessage](https://github.com/tmcqueen-materials/kafkacrypto/blob/master/kafkacrypto/message.py) objects. The `.isCleartext()` method can be used to determine whether the message component was successfully decrypted or not:
 ```python
 # consumer is setup with KafkaCrypto deserializers as shown above
 # 'key' refers to the key of key->value pairs from Kafka, not a cryptographic key
@@ -93,8 +93,6 @@ class CompoundDeSes(kafka.serializer.Serializer,kafka.serializer.Deserializer):
 # messages appear.
 producer = KafkaProducer(...,key_serializer=CompoundDeSes(json.dumps,kc.getKeySerializer()), value_serializer=CompoundDeSes(json.dumps,kc.getValueSerializer()))
 consumer = KafkaConsumer(...,key_deserializer=CompoundDeSes(kc.getKeyDeserializer(),json.loads), value_deserializer=CompoundDeSes(kc.getValueDeserializer(),json.loads))
-
-
 ```
 
 ## Troubleshooting
@@ -121,7 +119,7 @@ kcp = KafkaProducer(...)
 controller = KafkaCryptoController(nodeId,kcp,kcc)
 controller._mgmt_thread.join()
 ```
-The configuration parameters inside the provision script should be adjusted so that the "subscribe" and "key request" suffixes are distinct (see comment in `simple-provision.py`). If automatic topic creation is disabled, then the topic `root.subs` must also be created.
+The configuration parameters inside the provision script should be adjusted so that the "subscribe" and "key request" suffixes are distinct (see comment in `simple-provision.py`, or use `provision.py` instead). If automatic topic creation is disabled, then the topic `root.subs` must also be created. It is safe to enable regular log compaction on this topic.
 
 ## Design, Specification, and Security Analysis
 kafkacrypto is already in limited production use, and should be stable enough for broad adoption. However, a detailed security analysis of the kafkacrypto framework is still in progress, and use of this code should be considered experimental.
