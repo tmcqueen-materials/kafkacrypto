@@ -4,7 +4,7 @@ import pysodium
 import time
 import msgpack
 import logging
-from kafka import TopicPartition
+from kafkacrypto import TopicPartition
 import kafka.serializer
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError

@@ -41,3 +41,8 @@ class KafkaCryptoGeneratorError(KafkaCryptoBaseError):
     Base exception for all kafka-crypto-generator related errors
     """
 
+class KafkaCryptoWrapperError(KafkaCryptoBaseError):
+    """
+    Base exception for all kafka-crypto-wrapper related errors
+    """
+

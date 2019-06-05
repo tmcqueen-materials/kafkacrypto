@@ -2,7 +2,7 @@ from threading import Lock
 import inspect
 import msgpack
 import logging
-from kafka import KafkaProducer, KafkaConsumer
+from kafkacrypto import KafkaProducer, KafkaConsumer
 from kafkacrypto.exceptions import KafkaCryptoBaseError
 from kafkacrypto.cryptokey import CryptoKey
 
