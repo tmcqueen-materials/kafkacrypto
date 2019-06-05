@@ -22,7 +22,7 @@ class KafkaConsumer(Consumer):
                  'ssl_crlfile': 'ssl.crl.location',
                  'ssl_password': 'ssl.key.password',
                  'ssl_ciphers': 'ssl.cipher.suites',
-                 'max_request_size': 'message.max.bytes',
+                 'max_partition_fetch_bytes': 'message.max.bytes',
                }
   CONFIG_MAP_NULL = [ 'ssl_context', 'socket_options', 'max_partition_fetch_bytes' ]
   def __init__(self, *topics, **configs):
@@ -36,7 +36,6 @@ class KafkaConsumer(Consumer):
       # so do that translation here if not "special". Some cannot be translated, for example:
       #  ssl_context
       #  socket_options
-      #  max_partition_fetch_bytes
       if (k == 'key_deserializer'):
         if not (self.config[k] is None) and (not hasattr(self.config[k], 'deserialize') or not inspect.isroutine(self.config[k].deserialize)):
           self.kds = lambda topic, _bytes: self.config[k](_bytes)
@@ -95,7 +94,10 @@ class KafkaConsumer(Consumer):
 
   def seek_to_beginning(self):
     for tp in self.assignment():
-      self.seek(self, tp, OFFSET_BEGINNING)
+      try:
+        self.seek(tp, OFFSET_BEGINNING)
+      except:
+        pass
 
 
 class KafkaProducer(Producer):
@@ -110,6 +112,7 @@ class KafkaProducer(Producer):
                  'ssl_crlfile': 'ssl.crl.location',
                  'ssl_password': 'ssl.key.password',
                  'ssl_ciphers': 'ssl.cipher.suites',
+                 'max_request_size': 'message.max.bytes',
                }
   CONFIG_MAP_NULL = [ 'ssl_context', 'socket_options', 'max_partition_fetch_bytes' ]
   def __init__(self, **configs):

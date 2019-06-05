@@ -12,13 +12,13 @@ On every kafka consumer or producer node, do:
 
 In your producer/consumer code:
 ```python
-from kafkacrypto import KafkaCrypto
+from kafkacrypto import KafkaCrypto, KafkaConsumer, KafkaProducer
 nodeId = 'my-node-ID'
 
 # setup separate consumer/producers for the crypto key passing messages. DO NOT use these for
 # other messages.
-kcc = KafkaConsumer(...your server params...)
-kcp = KafkaProducer(...your server params...)
+kcc = KafkaConsumer(...your server params in kafka-python form...)
+kcp = KafkaProducer(...your server params in kafka-python form...)
 kc = KafkaCrypto(nodeId,kcp,kcc)
 
 ... Your code here ...
@@ -104,12 +104,14 @@ logging.basicConfig(level=logging.WARNING)
 logging.getLogger("kafkacrypto").setLevel(level=logging.INFO) # set to logging.DEBUG for more verbosity
 ```
 
+## Kafka Python Interfaces
+kafkacrypto has been extensively tested with kafka-python. It will use confluent_kafka if available via a thin compatibility wrapper. Other wrappers can be added (submit a pull request!)
+
 ## Advanced Usage
 kafkacrypto has been designed to seamlessly support a range of key exchange authorization and delegation mechanisms beyond the simple single-password root of trust. An example of a simple "controller-based" intermediary is included in the main package. The requisite controller can be setup as:
 ```python
 #!/usr/bin/python3
-from kafka import KafkaConsumer, KafkaProducer
-from kafkacrypto import KafkaCryptoController
+from kafkacrypto import KafkaCryptoController, KafkaConsumer, KafkaProducer
 
 nodeId = 'controller-name'
 
