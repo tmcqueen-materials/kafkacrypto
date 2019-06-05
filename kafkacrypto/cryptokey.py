@@ -14,6 +14,7 @@ class CryptoKey(object):
                            Must be seekable, with read/write permission, and
                            honor sync requests.
   """
+  RANDOM_BYTES = 32
   #
   # Per instance, defined in init
   #      __file: File object
@@ -50,19 +51,23 @@ class CryptoKey(object):
       topic = bytes(topic, 'utf-8')
     #
     # msgval should be a msgpacked chain.
-    # The last item in the array is the public key to send the key to, using a
+    # The public key in the array is the public key to send the key to, using a
     # common DH-derived key between that public key and our private encryption key.
-    # This last item *may* have additional public keys:
-    # (3) public key
+    # Then there is at least one more additional item, random bytes:
+    # (3) random bytes
+    # There then might be additional public keys:
+    # (4) public key
     # ...
     # Which, if present, are multiplied by our secret key and returned along
     # with our public key in the response.
     #
     try:
       pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request')
-      # Construct shared secret as sha256(topic || our_private*their_public)
+      # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       self.__generate_esk(topic)
-      ss = pysodium.crypto_hash_sha256(topic + pysodium.crypto_scalarmult_curve25519(self.__esk[topic],pk[2]))[0:pysodium.crypto_secretbox_KEYBYTES]
+      random1 = pysodium.randombytes(self.RANDOM_BYTES)
+      ss = pysodium.crypto_hash_sha256(topic + pk[3] + random1
+           + pysodium.crypto_scalarmult_curve25519(self.__esk[topic],pk[2]))[0:pysodium.crypto_secretbox_KEYBYTES]
       nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)
       # encrypt key and key index (MAC appended, nonce prepended)
       msg = msgpack.packb([keyidx, key])
@@ -70,9 +75,9 @@ class CryptoKey(object):
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
       poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']]])
       pks = [self.__epk[topic]]
-      for extrapk in pk[3:]:
+      for extrapk in pk[4:]:
         pks.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic],extrapk))
-      msg = msgpack.packb([time()+self.__maxage,poison,pks,msg])
+      msg = msgpack.packb([time()+self.__maxage,poison,pks,[pk[3],random1],msg])
       # and signed with our signing key
       msg = pysodium.crypto_sign(msg, self.__ssk)
       # and finally put as last member of a msgpacked array chaining to ROT
@@ -89,21 +94,26 @@ class CryptoKey(object):
       topic = bytes(topic, 'utf-8')
     #
     # msgval should be a msgpacked chain.
-    # The last item in the array is a set of public key(s) to combine with our
+    # The public key in the array is a set of public key(s) to combine with our
     # encryption key to get the secret to decrypt the key. If we do not
     # have an encryption key for the topic, we cannot do it until we have one.
+    # The next item is then the pair of random values for generating the shared
+    # secret, followed by the actual key message.
     #
     try:
       if (not topic in self.__esk.keys()):
         raise ValueError
       pk = process_chain(topic,self.__rot,msgval,b'key-encrypt')
-      if (len(pk) < 4):
+      if (len(pk) < 5):
         raise ValueError
-      nonce = pk[3][0:pysodium.crypto_secretbox_NONCEBYTES]
-      msg = pk[3][pysodium.crypto_secretbox_NONCEBYTES:]
+      random0 = pk[3][0]
+      random1 = pk[3][1]
+      nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
+      msg = pk[4][pysodium.crypto_secretbox_NONCEBYTES:]
       for cpk in pk[2]:
         # Construct candidate shared secrets as sha256(topic || our_private*their_public)
-        ss = pysodium.crypto_hash_sha256(topic + pysodium.crypto_scalarmult_curve25519(self.__esk[topic],cpk))[0:pysodium.crypto_secretbox_KEYBYTES]
+        ss = pysodium.crypto_hash_sha256(topic + random0 + random1
+             + pysodium.crypto_scalarmult_curve25519(self.__esk[topic],cpk))[0:pysodium.crypto_secretbox_KEYBYTES]
         # decrypt and return key
         try:
           msg = msgpack.unpackb(pysodium.crypto_secretbox_open(msg,nonce,ss))
@@ -122,16 +132,17 @@ class CryptoKey(object):
     #
     # returns the public key of the current encryption key for the specified topic
     # (generating a new one if not present), signed by our signing key,
-    # and with the chain to the ROT prepended.
+    # with a fresh random value, and with the chain to the ROT prepended.
     #
     try:
       if not (epk is None) and isinstance(epk,(bytes,bytearray)):
         self.__epk[topic] = epk
       if not (topic in self.__epk):
         self.__generate_esk(topic)
+      random0 = pysodium.randombytes(self.RANDOM_BYTES)
       # we allow either direct-to-producer or via-controller key establishment
       poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt-request',b'key-encrypt-subscribe']]])
-      msg = msgpack.packb([time()+self.__maxage,poison,self.__epk[topic]])
+      msg = msgpack.packb([time()+self.__maxage,poison,self.__epk[topic],random0])
       # and signed with our signing key
       msg = pysodium.crypto_sign(msg, self.__ssk)
       # and finally put as last member of a msgpacked array chaining to ROT
