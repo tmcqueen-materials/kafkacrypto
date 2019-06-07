@@ -22,37 +22,82 @@ class KafkaConsumer(Consumer):
                  'ssl_crlfile': 'ssl.crl.location',
                  'ssl_password': 'ssl.key.password',
                  'ssl_ciphers': 'ssl.cipher.suites',
-                 'max_partition_fetch_bytes': 'message.max.bytes',
+                 'max_partition_fetch_bytes': 'message.max.bytes', # this maps the hard limit functionality appropriately
+                 'bootstrap_servers': 'bootstrap.servers',
+                 'client_id': 'client.id',
+                 'group_id': 'group.id',
+                 'fetch_min_bytes': 'fetch.min.bytes',
+                 'fetch_max_wait_ms': 'fetch.wait.max.ms',
+                 'fetch_max_bytes': 'fetch.max.bytes',
+                 'request_timeout_ms': 'request.timeout.ms',
+                 'retry_backoff_ms': 'retry.backoff.ms',
+                 'reconnect_backoff_ms': 'reconnect.backoff.ms',
+                 'reconnect_backoff_max_ms': 'reconnect.backoff.max.ms',
+                 'max_in_flight_requests_per_connection': 'max.in.flight.requests.per.connection',
+                 'auto_offset_reset': 'auto.offset.reset',
+                 'enable_auto_commit': 'enable.auto.commit',
+                 'auto_commit_interval_ms': 'auto.commit.interval.ms',
+                 'check_crcs': 'check.crcs',
+                 'metadata_max_age_ms': 'metadata.max.age.ms',
+                 'partition_assignment_strategy': 'partition.assignment.strategy',
+                 'max_poll_interval_ms': 'max.poll.interval.ms',
+                 'session_timeout_ms': 'session.timeout.ms',
+                 'heartbeat_interval_ms': 'heartbeat.interval.ms',
+                 'receive_buffer_bytes': 'socket.receive.buffer.bytes',
+                 'send_buffer_bytes': 'socket.send.buffer.bytes',
+                 'security_protocol': 'security.protocol',
+                 'sasl_mechanism': 'sasl.mechanism',
+                 'sasl_plain_username': 'sasl.username',
+                 'sasl_plain_password': 'sasl.password',
+                 'sasl_kerberos_service_name': 'sasl.kerberos.service.name',
                }
-  CONFIG_MAP_NULL = [ 'ssl_context', 'socket_options', 'max_partition_fetch_bytes' ]
+  CONFIG_MAP_NULL = [ 'ssl_context', 
+                      'socket_options', 
+                      'default_offset_commit_callback', 
+                      'max_poll_records', 
+                      'consumer_timeout_ms',
+                      'ssl_check_hostname',
+                      'api_version',
+                      'api_version_auto_timeout_ms',
+                      'connections_max_idle_ms',
+                      'metrics_reporters',
+                      'metrics_num_samples',
+                      'metrics_sample_window_ms',
+                      'selector',
+                      'exclude_internal_topics',
+                      'sasl_kerberos_domain_name',
+                      'sasl_oauth_token_provider',
+                    ]
   def __init__(self, *topics, **configs):
     self._log = logging.getLogger(__name__)
-    self.config = configs
+    self.raw_config = configs
     self.cf_config = {}
+    self.config = {}
     self.kds = lambda topic, _bytes: _bytes
     self.vds = lambda topic, _bytes: _bytes
-    for k in self.config.keys():
-      # For virtually all config parameters, kafka-python uses "_" everywhere confluent_kafka uses "."
-      # so do that translation here if not "special". Some cannot be translated, for example:
-      #  ssl_context
-      #  socket_options
+    for k in self.raw_config.keys():
       if (k == 'key_deserializer'):
-        if not (self.config[k] is None) and (not hasattr(self.config[k], 'deserialize') or not inspect.isroutine(self.config[k].deserialize)):
-          self.kds = lambda topic, _bytes: self.config[k](_bytes)
+        if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'deserialize') or not inspect.isroutine(self.raw_config[k].deserialize)):
+          self.kds = lambda topic, _bytes: self.raw_config[k](_bytes)
         else:
-          self.kds = self.config[k].deserialize
+          self.kds = self.raw_config[k].deserialize
+        self.config[k] = self.kds
       elif (k == 'value_deserializer'):
-        if not (self.config[k] is None) and (not hasattr(self.config[k], 'deserialize') or not inspect.isroutine(self.config[k].deserialize)):
-          self.vds = lambda topic, _bytes: self.config[k](_bytes)
+        if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'deserialize') or not inspect.isroutine(self.raw_config[k].deserialize)):
+          self.vds = lambda topic, _bytes: self.raw_config[k](_bytes)
         else:
-          self.vds = self.config[k].deserialize
+          self.vds = self.raw_config[k].deserialize
+        self.config[k] = self.vds
       elif (k in self.CONFIG_MAP.keys()):
-        if not (self.config[k] is None):
-          self.cf_config[self.CONFIG_MAP[k]] = self.config[k]
+        if not (self.raw_config[k] is None):
+          self.cf_config[self.CONFIG_MAP[k]] = self.raw_config[k]
       elif (k in self.CONFIG_MAP_NULL):
-        self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.config[k])
+        self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.raw_config[k])
       else:
-        self.cf_config[k.replace('_','.')] = self.config[k]
+        self.cf_config[k] = self.raw_config[k]
+    for oldk,newk in self.CONFIG_MAP.items():
+      if newk in self.cf_config.keys():
+        self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
     if topics:
       self.subscribe(topics)
@@ -112,41 +157,79 @@ class KafkaProducer(Producer):
                  'ssl_crlfile': 'ssl.crl.location',
                  'ssl_password': 'ssl.key.password',
                  'ssl_ciphers': 'ssl.cipher.suites',
-                 'max_request_size': 'message.max.bytes',
+                 'max_request_size': 'message.max.bytes', # this maps the hard limit functionality appropriately                                                 
+                 'bootstrap_servers': 'bootstrap.servers',
+                 'client_id': 'client.id',
+                 'group_id': 'group.id',
+                 'acks': 'request.required.acks',
+                 'compression_type': 'compression.type',
+                 'retries': 'message.send.max.retries',
+                 'linger_ms': 'queue.buffering.max.ms',
+                 'request_timeout_ms': 'request.timeout.ms',
+                 'retry_backoff_ms': 'retry.backoff.ms',
+                 'reconnect_backoff_ms': 'reconnect.backoff.ms',
+                 'reconnect_backoff_max_ms': 'reconnect.backoff.max.ms',
+                 'max_in_flight_requests_per_connection': 'max.in.flight.requests.per.connection',
+                 'metadata_max_age_ms': 'metadata.max.age.ms',
+                 'receive_buffer_bytes': 'socket.receive.buffer.bytes',
+                 'send_buffer_bytes': 'socket.send.buffer.bytes',
+                 'security_protocol': 'security.protocol',
+                 'sasl_mechanism': 'sasl.mechanism',
+                 'sasl_plain_username': 'sasl.username',
+                 'sasl_plain_password': 'sasl.password',
+                 'sasl_kerberos_service_name': 'sasl.kerberos.service.name',
                }
-  CONFIG_MAP_NULL = [ 'ssl_context', 'socket_options', 'max_partition_fetch_bytes' ]
+  CONFIG_MAP_NULL = [ 'ssl_context', 
+                      'socket_options',
+                      'batch_size',
+                      'partitioner',
+                      'buffer_memory',
+                      'connections_max_idle_ms',
+                      'max_block_ms',
+                      'ssl_check_hostname',
+                      'api_version',
+                      'api_version_auto_timeout_ms',
+                      'metrics_reporters',
+                      'metrics_num_samples',
+                      'metrics_sample_window_ms',
+                      'selector',
+                      'sasl_kerberos_domain_name',
+                      'sasl_oauth_token_provider',
+                    ]
   def __init__(self, **configs):
     self._log = logging.getLogger(__name__)
-    self.config = configs
+    self.raw_config = configs
     self.cf_config = {}
+    self.config = {}
     self.ks = lambda topic, _bytes: bytes(_bytes)
     self.vs = lambda topic, _bytes: bytes(_bytes)
-    for k in self.config.keys():
-      # For virtually all config parameters, kafka-python uses "_" everywhere confluent_kafka uses "."
-      # so do that translation here if not "special". Some cannot be translated, for example:
-      #  ssl_context
-      #  socket_options
-      #  max_partition_fetch_bytes
+    for k in self.raw_config.keys():
       if (k == 'key_serializer'):
-        if not (self.config[k] is None) and (not hasattr(self.config[k], 'serialize') or not inspect.isroutine(self.config[k].serialize)):
-          self.ks = lambda topic, _bytes: self.config[k](_bytes)
+        if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'serialize') or not inspect.isroutine(self.raw_config[k].serialize)):
+          self.ks = lambda topic, _bytes: self.raw_config[k](_bytes)
         else:
-          self.ks = self.config[k].serialize
+          self.ks = self.raw_config[k].serialize
+        self.config[k] = self.ks
       elif (k == 'value_serializer'):
-        if not (self.config[k] is None) and (not hasattr(self.config[k], 'serialize') or not inspect.isroutine(self.config[k].serialize)):
-          self.vs = lambda topic, _bytes: self.config[k](_bytes)
+        if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'serialize') or not inspect.isroutine(self.raw_config[k].serialize)):
+          self.vs = lambda topic, _bytes: self.raw_config[k](_bytes)
         else:
-          self.vs = self.config[k].serialize
+          self.vs = self.raw_config[k].serialize
+        self.config[k] = self.vs
       elif (k in self.CONFIG_MAP.keys()):
-        if not (self.config[k] is None):
-          self.cf_config[self.CONFIG_MAP[k]] = self.config[k]
+        if not (self.raw_config[k] is None):
+          self.cf_config[self.CONFIG_MAP[k]] = self.raw_config[k]
       elif (k in self.CONFIG_MAP_NULL):
-        self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.config[k])
+        self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.raw_config[k])
       else:
-        self.cf_config[k.replace('_','.')] = self.config[k]
+        self.cf_config[k] = self.raw_config[k]
+    for oldk,newk in self.CONFIG_MAP.items():
+      if newk in self.cf_config.keys():
+        self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
 
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
+    # wish this were simpler, but the underlying library doesn't like None when no value should be passed.
     if not (headers is None):
       return self.produce(topic,self.vs(topic, value),self.ks(topic, key),partition,lambda a,b: True, timestamp_ms, headers)
     elif not (timestamp_ms is None):
