@@ -207,6 +207,7 @@ class KafkaCrypto(KafkaCryptoBase):
       if self._last_time+self.CRYPTO_RATCHET_INTERVAL < time():
         self._logger.info("Periodic ratchet increment.")
         self._last_time = time()
+        # prune
         for root,pgens in self._pgens.items():
           rki = []
           for ki,kv in pgens.items():
@@ -214,6 +215,8 @@ class KafkaCrypto(KafkaCryptoBase):
               rki.append(ki)
           for ki in rki:
             self._pgens[root].pop(ki)
+        # increment
+        self._cur_pgens = {}
         self._seed.increment()
       self._lock.release()
 

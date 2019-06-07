@@ -164,6 +164,9 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, us
                'TOPIC_SUFFIX_REQS': b'.reqs', # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': b'.keys',
                'TOPIC_SUFFIX_SUBS': b'.subs', # change to be same as REQS if this is a controller-less setup
+               'CRYPTO_MAX_PGEN_AGE': 604800,  # in s
+               'CRYPTO_SUB_INTERVAL': 60,      # in s
+               'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
                'MGMT_POLL_INTERVAL': 500, # in ms
                'MGMT_POLL_RECORDS': 8,    # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
