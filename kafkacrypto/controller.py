@@ -33,7 +33,8 @@ class KafkaCryptoController(KafkaCryptoBase):
        cryptokey (str,obj): Either a filename in which the crypto
                             private key is stored, or an object
                             implementing the necessary functions
-                            (encrypt_key, decrypt_key, sign_spk).
+                            (encrypt_keys, decrypt_keys, sign_spk,
+                            load/store_crypto_opaque).
        	       	       	    Set	to None	to load from the default
        	       	       	    location based on nodeID.
     provisioners (str,obj): Either a filename in which the allowed

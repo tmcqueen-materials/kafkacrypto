@@ -52,14 +52,6 @@ class KeyGenerator(object):
   def salt(self):
     return self.__salt
 
-  def secret(self):
-    return self.__secret
-
   @staticmethod
-  def key_generator(secret):
-    return KeyGenerator(secret=secret,ctx=b'key'+(b'\x00'*13))
-
-  @staticmethod
-  def value_generator(secret):
-    return KeyGenerator(secret=secret,ctx=b'value'+(b'\x00'*11))
-
+  def get_key_value_generators(secret):
+    return (KeyGenerator(secret=secret,ctx=b'key'+(b'\x00'*13)), KeyGenerator(secret=secret,ctx=b'value'+(b'\x00'*11)))

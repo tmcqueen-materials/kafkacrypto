@@ -120,7 +120,9 @@ class KafkaConsumer(Consumer):
   def poll(self, timeout=None, timeout_ms=None, max_records=None):
     if not timeout_ms is None:
       timeout = timeout_ms/1000.0
-    msg = super().poll(timeout)
+      msg = super().poll(timeout)
+    else:
+      msg = super().poll()
     if not (msg is None) and msg.error() is None:
       rvk = TopicPartition(msg.topic(),msg.partition())
       rv = Message(rvk.topic, rvk.partition, msg.offset(), msg.timestamp(), msg.headers(), self.kds(rvk.topic,msg.key()), self.vds(rvk.topic,msg.value()))
@@ -144,6 +146,14 @@ class KafkaConsumer(Consumer):
       except:
         pass
 
+  def __iter__(self):
+    return self
+
+  def __next__(self):
+    rv = self.poll(max_records=1)
+    if len(rv) == 1:
+      return list(rv.values())[0][0]
+    raise StopIteration("Poll Failed!")
 
 class KafkaProducer(Producer):
   """

@@ -40,17 +40,21 @@ class Ratchet(KeyGenerator):
     self.__file.flush()
     self.__file.seek(0,0)
 
-  def keyidx(self):
-    return self.__keyidx
-
-  def get_key_value_generators(self, topic):
+  def get_key_value_generators(self, topic, node=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
+    if not (node is None) and isinstance(node,(str)):
+      node = bytes(node, 'utf-8')
     # pysodium silently computes the hash of an empty string if input is not bytes, so check for
     # and catch that.
     if (not isinstance(topic, (bytes,bytearray))):
       raise KafkaCryptoRatchetError("Topic is not bytes!")
     hash = pysodium.crypto_hash_sha256(topic)
-    key,nonce = self.generate(salt=hash[0:self.SALTSIZE],ctx=hash[self.SALTSIZE:],keysize=self.SECRETSIZE,noncesize=0)
-    return (self.keyidx(), KeyGenerator.key_generator(key), KeyGenerator.value_generator(key))
-
+    # generate per topic key
+    key,_ = self.generate(salt=hash[0:self.SALTSIZE],ctx=hash[self.SALTSIZE:],keysize=self.SECRETSIZE,noncesize=0)
+    ki = self.__keyidx
+    if node is not None:
+      ki = ki.to_bytes(16, byteorder='big')
+      ki = pysodium.crypto_generichash(node + ki)
+    kg, vg = KeyGenerator.get_key_value_generators(key)
+    return (ki, key, kg, vg)

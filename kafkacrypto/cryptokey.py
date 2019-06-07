@@ -43,10 +43,13 @@ class CryptoKey(object):
     self.__ssk = contents[3]
     self.__spk = pysodium.crypto_sign_sk_to_pk(self.__ssk)
     self.__spk_chain = []
-    if (len(contents) > 4):
-      self.__update_spk_chain(contents[4])
+    self.__crypto_opaque = msgpack.packb([])
+    if (len(contents) > 5):
+      self.__crypto_opaque = contents[5]
+    # update chain last (since it might rewrite file)
+    self.__update_spk_chain(contents[4])
 
-  def encrypt_key(self, keyidx, key, topic, msgkey=None, msgval=None):
+  def encrypt_keys(self, keyidxs, keys, topic, msgkey=None, msgval=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     #
@@ -69,8 +72,12 @@ class CryptoKey(object):
       ss = pysodium.crypto_hash_sha256(topic + pk[3] + random1
            + pysodium.crypto_scalarmult_curve25519(self.__esk[topic],pk[2]))[0:pysodium.crypto_secretbox_KEYBYTES]
       nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)
-      # encrypt key and key index (MAC appended, nonce prepended)
-      msg = msgpack.packb([keyidx, key])
+      # encrypt keys and key indexes (MAC appended, nonce prepended)
+      msg = []
+      for i in range(0,len(keyidxs)):
+        msg.append(keyidxs[i])
+        msg.append(keys[i])
+      msg = msgpack.packb(msg)
       msg = nonce + pysodium.crypto_secretbox(msg,nonce,ss)
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
       poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']]])
@@ -84,12 +91,14 @@ class CryptoKey(object):
       tchain = self.__spk_chain.copy()
       tchain.append(msg)
       msg = msgpack.packb(tchain)
+      # remove ephemeral key
+      self.__remove_esk(topic)
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return (None, None)
     return (msgkey, msg)
 
-  def decrypt_key(self, topic, msgkey=None, msgval=None):
+  def decrypt_keys(self, topic, msgkey=None, msgval=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     #
@@ -117,16 +126,21 @@ class CryptoKey(object):
         # decrypt and return key
         try:
           msg = msgpack.unpackb(pysodium.crypto_secretbox_open(msg,nonce,ss))
+          rvs = {}
+          for i in range(0,len(msg),2):
+            rvs[msg[i]] = msg[i+1]
+          if len(rvs) < 1 or 2*len(rvs) != len(msg):
+            raise ValueError
         except:
           pass
-        else: 
-          return (msg[0], msg[1])
+        else:
+          self.__remove_esk(topic)
+          return rvs
       raise ValueError
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
-
-    return (None, None)
+    return None
 
   def signed_epk(self, topic, epk=None):
     #
@@ -155,10 +169,30 @@ class CryptoKey(object):
       pass
     return (None, None)
 
+  def store_crypto_opaque(self, crypto_opaque):
+    self.__crypto_opaque = msgpack.packb([crypto_opaque])
+    self.__update_file()
+
+  def load_crypto_opaque(self):
+    v = msgpack.unpackb(self.__crypto_opaque)
+    if (len(v) > 0):
+      return v[0]
+    else:
+      return None
+
   def __generate_esk(self, topic):
-    if (topic not in self.__esk.keys()):
-      self.__esk[topic] = pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES)
-      self.__epk[topic] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic])
+    # ephemeral keys are use once only, so always ok to overwrite
+    self.__esk[topic] = pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES)
+    self.__epk[topic] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic])
+
+  def __remove_esk(self, topic):
+    self.__esk.pop(topic)
+    self.__epk.pop(topic)
+
+  def __update_file(self):
+    self.__file.seek(0,0)
+    self.__file.write(msgpack.packb([self.__maxage, self.__rot, self.__chainrot, self.__ssk, msgpack.packb(self.__spk_chain), self.__crypto_opaque]))
+    self.__file.flush()
 
   def __update_spk_chain(self, newchain):
     #
@@ -179,10 +213,8 @@ class CryptoKey(object):
       for cpk in newchain:
         if (min_max_age != 0 and cpk[0]<min_max_age):
           raise ValueError
-      self.__file.seek(0,0)
-      self.__file.write(msgpack.packb([self.__maxage, self.__rot, self.__chainrot, self.__ssk, newchain]))
-      self.__file.flush()
       self.__spk_chain = msgpack.unpackb(newchain)
+      self.__update_file()
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
