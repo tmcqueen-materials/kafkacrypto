@@ -34,7 +34,16 @@ class CryptoKey(object):
       file = open(file, 'rb+', 0)
     self.__file = file
     self.__file.seek(0,0)
-    contents = msgpack.unpackb(self.__file.read())
+    data = self.__file.read()
+    datalen = len(data)
+    contents = None
+    while len(data) and contents is None:
+      try:
+        contents = msgpack.unpackb(data)
+      except msgpack.exceptions.ExtraData:
+        data = data[:-1]
+    if len(data) != datalen:
+      self._logger.warning("Cryptokey file had extraneous bytes at end, attempting load anyways.")
     self.__maxage = contents[0]
     self.__rot = contents[1]
     self.__chainrot = contents[2]
@@ -192,6 +201,8 @@ class CryptoKey(object):
   def __update_file(self):
     self.__file.seek(0,0)
     self.__file.write(msgpack.packb([self.__maxage, self.__rot, self.__chainrot, self.__ssk, msgpack.packb(self.__spk_chain), self.__crypto_opaque]))
+    self.__file.flush()
+    self.__file.truncate()
     self.__file.flush()
 
   def __update_spk_chain(self, newchain):
