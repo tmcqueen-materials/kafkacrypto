@@ -5,7 +5,7 @@ import pysodium
 from time import time,sleep
 import msgpack
 import logging
-from kafkacrypto import TopicPartition
+from kafkacrypto import TopicPartition,TopicPartitionOffset
 import kafka.serializer
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError
@@ -128,7 +128,7 @@ class KafkaCrypto(KafkaCryptoBase):
           topic = msg.topic
           if (isinstance(topic,(str,))):
             topic = topic.encode('utf-8')
-          self._tps_offsets[topic] = msg.offset+1
+          self._tps_offsets[topic] = msg.offset
           self._logger.debug("Processing message: %s", msg)
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
@@ -172,12 +172,15 @@ class KafkaCrypto(KafkaCryptoBase):
       self._logger.debug("Processing subscription changes.")
       if self._tps_updated == True:
         self._logger.info("Subscriptions changed, adjusting.")
-        self._kc.assign(list(self._tps.values()))
+        tpo = []
+        for tk in self._tps.keys():
+          tpo.append(TopicPartitionOffset(self._tps[tk].topic, self._tps[tk].partition, self._tps_offsets[tk]))
+        self._kc.assign_and_seek(tpo)
+        self._logger.info("Subscriptions adjusted.")
         if (self._kc.config['group_id'] is None):
+          self._logger.info("No group_id, seeking to beginning.")
           self._kc.seek_to_beginning()
         for tk in self._tps.keys():
-          if (self._tps_offsets[tk] != 0):
-            self._kc.seek(self._tps[tk], self._tps_offsets[tk])
           if (tk[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS):
             root = tk[:-len(self.TOPIC_SUFFIX_KEYS)]
             if not (root in self._subs_needed):

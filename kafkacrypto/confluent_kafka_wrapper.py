@@ -1,12 +1,11 @@
 import copy
 import inspect
 import logging
-from confluent_kafka import Producer, Consumer, TopicPartition as CFTopicPartition, OFFSET_BEGINNING
+from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
 
-TopicPartition = namedtuple("TopicPartition",
-  ["topic", "partition"])
+TopicPartition = namedtuple("TopicPartition", ["topic", "partition"])
 Message = namedtuple("Message",
   ["topic", "partition", "offset", "timestamp", "headers", "key", "value"])
 
@@ -51,10 +50,11 @@ class KafkaConsumer(Consumer):
                  'sasl_plain_password': 'sasl.password',
                  'sasl_kerberos_service_name': 'sasl.kerberos.service.name',
                }
+  CONFIG_MAP_LOCAL = { 'max_poll_records': 500,
+                     }
   CONFIG_MAP_NULL = [ 'ssl_context', 
                       'socket_options', 
                       'default_offset_commit_callback', 
-                      'max_poll_records', 
                       'consumer_timeout_ms',
                       'ssl_check_hostname',
                       'api_version',
@@ -75,6 +75,8 @@ class KafkaConsumer(Consumer):
     self.config = {}
     self.kds = lambda topic, _bytes: _bytes
     self.vds = lambda topic, _bytes: _bytes
+    for k in self.CONFIG_MAP_LOCAL.keys():
+      self.config[k] = self.CONFIG_MAP_LOCAL[k]
     for k in self.raw_config.keys():
       if (k == 'key_deserializer'):
         if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'deserialize') or not inspect.isroutine(self.raw_config[k].deserialize)):
@@ -91,6 +93,8 @@ class KafkaConsumer(Consumer):
       elif (k in self.CONFIG_MAP.keys()):
         if not (self.raw_config[k] is None):
           self.cf_config[self.CONFIG_MAP[k]] = self.raw_config[k]
+      elif (k in self.CONFIG_MAP_LOCAL):
+        self.config[k] = self.raw_config[k]
       elif (k in self.CONFIG_MAP_NULL):
         self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.raw_config[k])
       else:
@@ -117,27 +121,36 @@ class KafkaConsumer(Consumer):
     else:
       return super().subscribe(topics)
 
-  def poll(self, timeout=None, timeout_ms=None, max_records=None):
-    if not timeout_ms is None:
-      timeout = timeout_ms/1000.0
-      msg = super().poll(timeout)
-    else:
-      msg = super().poll()
-    if not (msg is None) and msg.error() is None:
-      rvk = TopicPartition(msg.topic(),msg.partition())
-      rv = Message(rvk.topic, rvk.partition, msg.offset(), msg.timestamp(), msg.headers(), self.kds(rvk.topic,msg.key()), self.vds(rvk.topic,msg.value()))
-      return {rvk:[rv]}
-    else:
-      return {}
+  def poll(self, timeout_ms=0, max_records=None):
+    rvm = {}
+    msgs = super().consume(self.config['max_poll_records'],timeout_ms/1000.0)
+    for msg in msgs:
+      if not (msg is None) and msg.error() is None:
+        rvk = TopicPartition(msg.topic(),msg.partition())
+        rv = Message(rvk.topic, rvk.partition, msg.offset(), msg.timestamp(), msg.headers(), self.kds(rvk.topic,msg.key()), self.vds(rvk.topic,msg.value()))
+        if rvk in rvm.keys():
+          rvm[rvk].append(rv)
+        else:
+          rvm[rvk] = [rv]
+    return rvm
 
   def assign(self, partitions):
     tps = []
     for tp in partitions:
-      tps.append(CFTopicPartition(tp.topic, tp.partition))
+      tps.append(TopicPartitionOffset(tp.topic, tp.partition))
+    return super().assign(tps)
+
+  def assign_and_seek(self, partoffs):
+    tps = []
+    for tpo in partoffs:
+      if (tpo.offset > 0):
+        tps.append(TopicPartitionOffset(tpo.topic, tpo.partition, tpo.offset))
+      else:
+        tps.append(TopicPartitionOffset(tpo.topic, tpo.partition))
     return super().assign(tps)
 
   def seek(self, tp, offset):
-    return super().seek(CFTopicPartition(tp.topic, tp.partition, offset))
+    return super().seek(TopicPartitionOffset(tp.topic, tp.partition, offset))
 
   def seek_to_beginning(self):
     for tp in self.assignment():
@@ -150,7 +163,7 @@ class KafkaConsumer(Consumer):
     return self
 
   def __next__(self):
-    rv = self.poll(max_records=1)
+    rv = self.poll(timeout_ms=-1000.0,max_records=1)
     if len(rv) == 1:
       return list(rv.values())[0][0]
     raise StopIteration("Poll Failed!")

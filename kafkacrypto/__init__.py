@@ -4,12 +4,12 @@ __all__ = []
 
 try:
   import confluent_kafka
-  from kafkacrypto.confluent_kafka_wrapper import KafkaConsumer,KafkaProducer,TopicPartition
+  from kafkacrypto.confluent_kafka_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset
 except ImportError:
   # fallback to kafka-python
-  from kafka import KafkaConsumer,KafkaProducer,TopicPartition
+  from kafkacrypto.kafka_python_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset
 
-__all__.extend(['KafkaConsumer', 'KafkaProducer', 'TopicPartition'])
+__all__.extend(['KafkaConsumer', 'KafkaProducer', 'TopicPartition', 'TopicPartitionOffset'])
 
 from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.crypto import KafkaCrypto
