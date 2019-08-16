@@ -3,7 +3,7 @@ import inspect
 import pysodium
 from time import time
 import msgpack
-from kafka import TopicPartition
+from kafkacrypto import TopicPartition
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoControllerError
 from kafkacrypto.provisioners import Provisioners
