@@ -71,7 +71,12 @@ class CryptoKey(object):
     # (4) public key
     # ...
     # Which, if present, are multiplied by our secret key and returned along
-    # with our public key in the response.
+    # with our public key in the response. This is only safe because:
+    #  1. A fresh ephemeral secret key is used for each call of encrypt_keys
+    #  2. We validate that the additional public keys are not equal to the
+    #     one used to derive the shared secret for this call
+    # Together, these ensure that an attacker cannot use the additional public
+    # keys feature to learn the common DH shared secret for another session.
     #
     try:
       pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request')
@@ -92,7 +97,8 @@ class CryptoKey(object):
       poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']]])
       pks = [self.__epk[topic]]
       for extrapk in pk[4:]:
-        pks.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic],extrapk))
+        if (extrapk != pk[3]):
+          pks.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic],extrapk))
       msg = msgpack.packb([time()+self.__maxage,poison,pks,[pk[3],random1],msg])
       # and signed with our signing key
       msg = pysodium.crypto_sign(msg, self.__ssk)
