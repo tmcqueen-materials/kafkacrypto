@@ -1,13 +1,60 @@
 import copy
 import inspect
 import logging
-from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING
+from time import time
+from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, TIMESTAMP_NOT_AVAILABLE
+from kafka.future import Future
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
 
 TopicPartition = namedtuple("TopicPartition", ["topic", "partition"])
 Message = namedtuple("Message",
   ["topic", "partition", "offset", "timestamp", "headers", "key", "value"])
+RecordMetadata = namedtuple('RecordMetadata',
+  ['topic', 'partition', 'topic_partition', 'offset', 'timestamp', 'checksum', 'serialized_key_size', 'serialized_value_size', 'serialized_header_size'])
+
+class FutureTimeoutError(Exception):
+  """
+  Timeout waiting for future to complete
+  """
+
+class FutureRecordMetadata(Future):
+  """
+  Our implementation of FutureRecordMetadata so producer callbacks can be used
+  """
+  def __init__(self, producer, value_len, key_len):
+    super().__init__()
+    self._producer = producer
+    self.key_len = key_len
+    self.value_len = value_len
+
+  def base_callback(self, err, msg):
+    if err != None:
+      self.failure(err)
+    elif msg.error() != None:
+      self.failure(msg.error())
+    else:
+      # success
+      metadata = RecordMetadata(msg.topic(), msg.partition(), TopicPartition(msg.topic(), msg.partition()),
+                                msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else int(time()*1000), 
+                                None, self.key_len, self.value_len, -1)
+      self.success(metadata)
+
+  def get(self, timeout=None):
+    if timeout is None:
+      last_time = 9223372036854775807
+      timeout = last_time-time()
+    else:
+      last_time = time()+timeout
+    while not self.is_done and timeout>0:
+      self._producer.poll(timeout)
+      timeout = last_time-time()
+    if not self.is_done:
+      raise FutureTimeoutError("Timeout after waiting for %s secs." % (timeout,))
+    if self.failed():
+      raise self.exception
+    return self.value
+
 
 class KafkaConsumer(Consumer):
   """
@@ -252,16 +299,20 @@ class KafkaProducer(Producer):
     super().__init__(self.cf_config)
 
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
+    if key!=None:
+      key = self.ks(topic, key)
+    if value!=None:
+      value = self.vs(topic, value)
+    rv = FutureRecordMetadata(self, len(value) if value!=None else -1, len(key) if key!=None else -1)
     # wish this were simpler, but the underlying library doesn't like None when no value should be passed.
+    if key is None:
+      key = b''
+    if value is None:
+      value = b''
     if not (headers is None):
-      return self.produce(topic,self.vs(topic, value),self.ks(topic, key),partition,lambda a,b: True, timestamp_ms, headers)
+      self.produce(topic, value, key, partition, rv.base_callback, timestamp_ms if timestamp_ms!=None else int(time()*1000), headers)
     elif not (timestamp_ms is None):
-      return self.produce(topic,self.vs(topic, value),self.ks(topic, key),partition,lambda a,b: True, timestamp_ms)
-    elif not (partition == 0):
-      return self.produce(topic,self.vs(topic, value),self.ks(topic, key),partition)
-    elif not (key is None):
-      return self.produce(topic,self.vs(topic, value),self.ks(topic, key))
-    elif not (value is None):
-      return self.produce(topic,self.vs(topic, value))
+      self.produce(topic, value, key, partition, rv.base_callback, timestamp_ms)
     else:
-      return self.produce(topic)
+      self.produce(topic, value, key, partition, rv.base_callback)
+    return rv

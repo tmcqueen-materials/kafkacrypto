@@ -106,7 +106,10 @@ class KafkaCryptoController(KafkaCryptoBase):
             self._logger.warning("Unknown topic type in message: %s", msg)
         self._lock.release()
 
-      # Third, commit offsets
+      # Third, flush producer
+      self._kp.flush()
+
+      # Fourth, commit offsets
       if (self._kc.config['group_id'] is not None):
         self._kc.commit()
   

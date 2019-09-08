@@ -167,6 +167,9 @@ class KafkaCrypto(KafkaCryptoBase):
             self._logger.warning("Unknown topic type in message: %s", msg)
         self._lock.release()
   
+      # Flush producer
+      self._kp.flush()
+
       # Second, deal with subscription changes
       self._lock.acquire()
       self._logger.debug("Processing subscription changes.")
@@ -203,6 +206,9 @@ class KafkaCrypto(KafkaCryptoBase):
             self._logger.info("Failed to send new subscribe request for root=%s", root)
       self._subs_needed = []
       self._lock.release()
+
+      # Flush producer
+      self._kp.flush()
 
       # Fourth, periodically increment ratchet and prune old keys
       self._logger.debug("Checking ratchet time.")
