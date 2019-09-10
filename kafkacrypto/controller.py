@@ -26,35 +26,46 @@ class KafkaCryptoController(KafkaCryptoBase):
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
-         config (str,dict): Either a filename in which configuration
-                            data is a stored, or a dict of config
-                            parameters. Set to None to load from the
-       	       	       	    default location based on nodeID.
-       cryptokey (str,obj): Either a filename in which the crypto
-                            private key is stored, or an object
-                            implementing the necessary functions
-                            (encrypt_keys, decrypt_keys, sign_spk,
-                            load/store_crypto_opaque).
-       	       	       	    Set	to None	to load from the default
-       	       	       	    location based on nodeID.
-    provisioners (str,obj): Either a filename in which the allowed
-                            provisioners are stored, or an object
-                            implementing the necessary functions
+         config (str,file): Filename or File IO object in which
+                            configuration data is stored. Set to None
+                            to load from the default location based
+                            on nodeID. Must be seekable, with read/
+                            write permission, honor sync requests,
+                            and not be written by any other program.
+           cryptokey (obj): Optional object implementing the
+                            necessary public/private key functions
+                            (get/sign_spk,get/use_epk,
+                            wrap/unwrap_opaque).
+                            Set to None to load from the default
+                            location in the configuration file.
+        provisioners (obj): Optional object implementing the
+                            necessary allowed provisioner functions
                             (reencrypt_request). Set to None to
-                            load from the default location based
-                            on nodeID. 
+                            load from the default location in
+                            the configuration file.
   """
 
   def __init__(self, nodeID, kp, kc, config=None, cryptokey=None, provisioners=None):
     super().__init__(nodeID, kp, kc, config, cryptokey)
-    if (self._kc.config['enable_auto_commit'] != False):
+    if (not ('enable_auto_commit' in self._kc.config) or self._kc.config['enable_auto_commit'] != False):
       self._logger.warning("Auto commit not disabled, controller may miss messages.")
     if (self._kc.config['group_id'] is None):
       self._logger.warning("Group ID not set, controller may miss messages.")
     if (provisioners is None):
-      provisioners = nodeID + ".provisioners"
-    if (isinstance(provisioners,(str,))):
-      provisioners = Provisioners(file=provisioners)
+      provs = self._cryptostore.load_section('provisioners')
+      if provs!=None:
+        provisioners = []
+        for p in provs:
+          provisioners.append(provs[p])
+      if (provisioners is None):
+        # legacy
+        with open(nodeID + ".provisioners", "rb") as provs:
+          provisioners = msgpack.unpackb(provs.read())
+        i = 0
+        while i < len(provisioners):
+          self._cryptostore.store_value('provisioners'+str(i),provisioners[i],section='provisioners')
+          i += 1
+      provisioners = Provisioners(provisioners)
     if (not hasattr(provisioners, 'reencrypt_request') or not inspect.isroutine(provisioners.reencrypt_request)):
       raise KafkaCryptoControllerError("Invalid provisioners source supplied!")
 
@@ -94,7 +105,7 @@ class KafkaCryptoController(KafkaCryptoBase):
             root = topic[:-len(self.TOPIC_SUFFIX_SUBS)]
        	    self._logger.debug("Processing subscribe message, root=%s, msgkey=%s", root, msg.key)
             # New consumer encryption key. Validate
-            k,v = self._provisioners.reencrypt_request(root, cryptokey=self._cryptokey, msgkey=msg.key, msgval=msg.value)
+            k,v = self._provisioners.reencrypt_request(root, cryptoexchange=self._cryptoexchange, msgkey=msg.key, msgval=msg.value)
             # Valid request, resign and retransmit
             if (not (k is None)) or (not (v is None)):
               self._logger.info("Valid consumer key request on topic=%s, root=%s, msgkey=%s. Resending to topic=%s, msgkey=%s", topic, root, msg.key, root + self.TOPIC_SUFFIX_REQS, k)

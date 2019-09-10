@@ -26,23 +26,23 @@ class KafkaCrypto(KafkaCryptoBase):
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
-         config (str,dict): Either a filename in which configuration
-                            data is a stored, or a dict of config
-                            parameters. Set to None to load from the
-                            default location based on nodeID.
-       cryptokey (str,obj): Either a filename in which the crypto
-                            private key is stored, or an object
-                            implementing the necessary functions 
-                            (encrypt_keys, decrypt_keys, sign_spk,
-                            load/store_crypto_opaque).
+         config (str,file): Filename or File IO object in which
+                            configuration data is stored. Set to None
+                            to load from the default location based
+                            on nodeID. Must be seekable, with read/
+                            write permission, honor sync requests,
+                            and not be written by any other program.
+           cryptokey (obj): Optional object implementing the
+                            necessary public/private key functions
+                            (get/sign_spk,get/use_epk,
+                            wrap/unwrap_opaque).
                             Set to None to load from the default
-                            location based on nodeID.
-            seed (str,obj): Either a filename in which the source
-                            ratchet seed is stored, or an object
-                            implementing the necessary functions
+                            location in the configuration file.
+                seed (obj): Optional object implementing the 
+                            necessary ratchet functions
                             (increment, generate). Set to None to
-                            load from the default location based
-                            on nodeID.
+                            load from the default location in
+                            the configuration file.
   """
 
   #
@@ -73,7 +73,13 @@ class KafkaCrypto(KafkaCryptoBase):
   def __init__(self, nodeID, kp, kc, config=None, cryptokey=None, seed=None):
     super().__init__(nodeID, kp, kc, config, cryptokey)
     if (seed is None):
-      seed = nodeID + ".seed"
+      seed = self._cryptostore.load_value('ratchet')
+      if seed!=None and seed.startswith('file#'):
+        seed = seed[5:]
+      if (seed is None):
+        # legacy
+        seed = nodeID + ".seed"
+        self._cryptostore.store_value('ratchet', 'file#' + seed)
     if (isinstance(seed,(str,))):
       seed = Ratchet(file=seed)
     if (not hasattr(seed, 'increment') or not inspect.isroutine(seed.increment) or not hasattr(seed, 'get_key_value_generators') or not inspect.isroutine(seed.get_key_value_generators)):
@@ -91,8 +97,9 @@ class KafkaCrypto(KafkaCryptoBase):
     self._subs_last = {}
     self._last_time = time()
 
-    kvs = self._cryptokey.load_crypto_opaque()
+    kvs = self._cryptostore.load_opaque_value('oldkeys',section="crypto")
     if not (kvs is None):
+      kvs = msgpack.unpackb(kvs)
       if 'pgens' in kvs.keys() or b'pgens' in kvs.keys():
         self._logger.info("Found pgens to load.")
         t = 'pgens'
@@ -140,7 +147,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 ki.append(ski)
                 s.append(sk['secret'])
               if len(ki) > 0:
-                k,v = self._cryptokey.encrypt_keys(ki, s, root, msgkey=msg.key, msgval=msg.value)
+                k,v = self._cryptoexchange.encrypt_keys(ki, s, root, msgkey=msg.key, msgval=msg.value)
                 if (not (k is None)) or (not (v is None)):
                   self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, msg.key)
                   self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
@@ -151,7 +158,7 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
-            nks = self._cryptokey.decrypt_keys(root,msgkey=msg.key,msgval=msg.value)
+            nks = self._cryptoexchange.decrypt_keys(root,msgkey=msg.key,msgval=msg.value)
             if not (nks is None):
               for nki,nk in nks.items():
                 self._logger.info("Received new encryption key for root=%s, key index=%s, msgkey=%s", root, nki, msg.key)
@@ -197,7 +204,7 @@ class KafkaCrypto(KafkaCryptoBase):
       for root in self._subs_needed:
         self._logger.info("(Re)subscribing to root=%s", root)
         if not (root in self._subs_last.keys()) or self._subs_last[root]+self.CRYPTO_SUB_INTERVAL<time():
-          k,v = self._cryptokey.signed_epk(root)
+          k,v = self._cryptoexchange.signed_epk(root)
           if not (k is None) or not (v is None):
             self._subs_last[root] = time()
             self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
@@ -243,7 +250,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # stored pgens do not have generators as they should never be used for active production
             # (but secret stays around so lost consumers can catch up)
         self._logger.info("Saving %s old production keys.", len(kvs['pgens']))
-        self._cryptokey.store_crypto_opaque(kvs)
+        self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs),section="crypto")
       self._lock.release()
   
       # Finally, loop back to poll again

@@ -6,6 +6,11 @@ class KafkaCryptoBaseError(Exception):
     Base exception for all errors
     """
 
+class KafkaCryptoStoreError(KafkaCryptoBaseError):
+    """
+    Base exception for all kafka-crypto store related errors
+    """
+
 class KafkaCryptoError(KafkaCryptoBaseError):
     """
     Base exception for all kafka-crypto related errors
@@ -13,7 +18,7 @@ class KafkaCryptoError(KafkaCryptoBaseError):
 
 class KafkaCryptoUtilError(KafkaCryptoBaseError):
     """
-    Base exception for all kafka-crypto related errors
+    Base exception for all kafka-crypto utility related errors
     """
 
 class KafkaCryptoControllerError(KafkaCryptoBaseError):

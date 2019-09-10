@@ -1,8 +1,36 @@
 import pysodium
 import msgpack
-from binascii import unhexlify, hexlify
+from base64 import b64encode, b64decode
+from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
+
+def str_decode(value):
+  if value!=None:
+    try:
+      value = int(value)
+    except ValueError as e:
+      try:
+        value = float(value)
+      except ValueError as e:
+        if value.lower() == "true":
+          value = True 
+        elif value.lower() == "false":
+          value = False
+        elif value.startswith("base64#"):
+          try:
+            value = b64decode(value[7:].encode('utf-8'),validate=True)
+          except binasciiError:
+            value = None
+  return value
+
+def str_encode(value):
+  if value!=None:
+    if isinstance(value,(int,float,bool)):
+      value = str(value)
+    if not isinstance(value,(str,)):
+      value = 'base64#' + b64encode(value).decode('utf-8')
+  return value
 
 class PasswordProvisioner(object):
   """The PasswordProvisioner class instantiates three provisioner keys, and uses them
