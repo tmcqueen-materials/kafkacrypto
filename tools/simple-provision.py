@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 import pysodium
 import msgpack
+from configparser import ConfigParser
 from time import time
 from getpass import getpass
 from binascii import unhexlify, hexlify
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
-from kafkacrypto.utils import PasswordProvisioner, PasswordROT
+from kafkacrypto.utils import PasswordProvisioner, PasswordROT, str_encode
 
 #
 # Global configuration
@@ -145,11 +146,6 @@ while len(ans) < 1 or (ans[0].lower() != 'n' and ans[0].lower() != 'y'):
 
 assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 
-# If controller, list of provisioners
-if (choice == 1):
-  with open(nodeID + ".provisioners", "wb") as f:
-    f.write(msgpack.packb([_msgchainrot]))
-
 # Generate KDF seed first
 with open(nodeID + ".seed", "wb") as f:
   rb = pysodium.randombytes(Ratchet.SECRETSIZE)
@@ -158,20 +154,37 @@ if (choice == 2 or choice == 4):
   print('There will be no escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data from this producer unless you store the following value in a secure location:')
   print(nodeID + ':', hexlify(rb))
 
-# Second, write cryptokey config file
+# Second, generate identify keypair and chain, and write cryptokey config file
+pk,sk = pysodium.crypto_sign_keypair()
+if len(topics) > 0:
+  poison = msgpack.packb([[b'topics',topics],[b'usages',_usages[key]]])
+else:
+  poison = msgpack.packb([[b'usages',_usages[key]]])
+msg = [time()+_lifetime, poison, pk]
+msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
+chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
+print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
 with open(nodeID + ".crypto", "wb") as f:
-  pk,sk = pysodium.crypto_sign_keypair()
-  if len(topics) > 0:
-    poison = msgpack.packb([[b'topics',topics],[b'usages',_usages[key]]])
-  else:
-    poison = msgpack.packb([[b'usages',_usages[key]]])
-  msg = [time()+_lifetime, poison, pk]
-  msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
-  chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
-  f.write(msgpack.packb([_lifetime,_msgrot,_msgchkrot,sk,chain]))
-  print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
+  f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
 
-# Third, write config defaults
+# Third, write config
+cfg = ConfigParser()
+cfg['DEFAULT'] = {}
+cfg['DEFAULT']['node_id'] = str_encode(nodeID)
+cfg['kafka'] = {}
+cfg['kafka-crypto'] = {}
+cfg[str_encode(nodeID+"-crypto")] = {}
+cfg[str_encode(nodeID+"-crypto")]['maxage'] = str_encode(_lifetime)
+cfg[str_encode(nodeID+"-crypto")]['rot'] = str_encode(_msgrot)
+cfg[str_encode(nodeID+"-crypto")]['chainrot'] = str_encode(_msgchkrot)
+cfg[str_encode(nodeID+"-crypto")]['chain'] = str_encode(chain)
+# If controller, list of provisioners
+if (choice == 1):
+  cfg[str_encode(nodeID+"-provisioners")] = {}
+  cfg[str_encode(nodeID+"-provisioners")]['provisioners0'] = str_encode(_msgchainrot)
+cfg[str_encode(nodeID)] = {}
+cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
+cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
 DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, used to find root name and subs/keys
                'TOPIC_SUFFIX_REQS': b'.reqs', # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': b'.keys',
@@ -187,5 +200,8 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, us
 if ((choice == 2 or choice == 4) and sole == True):
   DEFAULTS['MGMT_LONG_KEYINDEX'] = False
 
-with open(nodeID + ".config", "wb") as f:
-  f.write(msgpack.packb(DEFAULTS))
+for k in DEFAULTS:
+  cfg[str_encode(nodeID)][str_encode(k)] = str_encode(DEFAULTS[k])
+
+with open(nodeID + ".config", "w") as f:
+  cfg.write(f)
