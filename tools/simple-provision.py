@@ -168,7 +168,7 @@ with open(nodeID + ".crypto", "wb") as f:
   f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
 
 # Third, write config
-cfg = ConfigParser()
+cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
 cfg['DEFAULT'] = {}
 cfg['DEFAULT']['node_id'] = str_encode(nodeID)
 cfg['kafka'] = {}
