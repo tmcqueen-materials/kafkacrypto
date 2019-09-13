@@ -309,7 +309,7 @@ class KafkaCrypto(KafkaCryptoBase):
       if bytes_ is None:
         return None
       root = self._parent.get_root(topic)
-      if bytes_[0] != 1:
+      if len(bytes_) < 1 or bytes_[0] != 1:
         return KafkaCryptoMessage.fromBytes(bytes_)
       msg = msgpack.unpackb(bytes_[1:])
       if (len(msg) != 3):

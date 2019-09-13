@@ -36,7 +36,9 @@ class KafkaCryptoMessage(object):
   def fromBytes(rawmsg):
     if (not isinstance(rawmsg, (bytes,bytearray))):
       raise KafkaCryptoMessageError("Passed raw message not bytes-like!")
-    if (rawmsg[0] == 0):
+    if len(rawmsg) == 0):
+      return KafkaCryptoMessage(b'',False)
+    elif (rawmsg[0] == 0):
       return KafkaCryptoMessage(rawmsg[1:],True)
     else:
       return KafkaCryptoMessage(rawmsg,False)
