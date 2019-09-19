@@ -97,6 +97,12 @@ class KafkaCrypto(KafkaCryptoBase):
     self._subs_last = {}
     self._last_time = time()
 
+    # Add management frame TPS
+    for ntp in [self.MGMT_TOPIC_CHAINS, self.MGMT_TOPIC_BLACKLIST]:
+      self._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
+      self._tps_offsets[ntp] = 0
+      self._tps_updated = True
+
     kvs = self._cryptostore.load_opaque_value('oldkeys',section="crypto")
     if not (kvs is None):
       kvs = msgpack.unpackb(kvs)
@@ -169,6 +175,13 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._cgens[root][nki] = {}
                 self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
                 self._cgens[root][nki]['secret'] = nk
+          elif topic == self.MGMT_TOPIC_CHAINS:
+            # New candidate public key chain
+            newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+            if not (newchain is None):
+              self._cryptostore.store_value('chain',newchain,section='crypto')
+          elif topic == self.MGMT_TOPIC_BLACKLIST:
+            self._logger.warning("Blacklist not yet implemented, but message %s received.", msg)
           else:
             # unknown object
             self._logger.warning("Unknown topic type in message: %s", msg)

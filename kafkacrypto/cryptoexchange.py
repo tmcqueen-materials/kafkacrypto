@@ -164,6 +164,13 @@ class CryptoExchange(object):
       pass
     return (None, None)
 
+  def replace_spk_chain(self, newchain):
+    try:
+      self.__update_spk_chain(newchain)
+      return newchain
+    except ValueError:
+      return None
+
   def __update_spk_chain(self, newchain):
     #
     # We have a new candidate chain to replace the current one (if any). We
@@ -172,7 +179,7 @@ class CryptoExchange(object):
     try:
       pk = process_chain(b'',self.__chainrot,newchain,b'')
       if (len(pk) < 3 or pk[2] != self.__cryptokey.get_spk()):
-        raise ValueError
+        raise ValueError("New chain does not match current signing public key,")
       # If we get here, it is a valid chain. So now we need
       # to see if it is "superior" than our current chain.
       # This means a larger minimum max_age.
@@ -180,9 +187,8 @@ class CryptoExchange(object):
       for cpk in self.__spk_chain:
         if (min_max_age == 0 or cpk[0]<min_max_age):
           min_max_age = cpk[0]
-      for cpk in newchain:
-        if (min_max_age != 0 and cpk[0]<min_max_age):
-          raise ValueError
+      if (pk[0] < min_max_age):
+        raise ValueError("New chain has shorter expiry time than current chain.")
       self.__spk_chain = msgpack.unpackb(newchain)
       return newchain
     except Exception as e:
