@@ -9,13 +9,15 @@ class Provisioners(object):
 
   Keyword Arguments:
       provisioners (array): List of public keys of allowed provisioners
+          denylist (array): Optional list of denylisted public keys
   """
   #
   # Per instance, defined in init
   #      __spks: list of allowed provisioner public keys
   #
-  def __init__(self, provisioners=[]):
+  def __init__(self, provisioners=[], denylist=None):
     self.__spks = provisioners
+    self.__denylist = denylist
 
   def reencrypt_request(self, topic, cryptoexchange, msgkey=None, msgval=None):
     if (isinstance(topic,(str))):
@@ -28,7 +30,7 @@ class Provisioners(object):
       pk = None
       for prov in self.__spks:
         try:
-          pk = process_chain(topic,prov,msgval,b'key-encrypt-subscribe')
+          pk = process_chain(topic,prov,msgval,b'key-encrypt-subscribe',denylist=self.__denylist)
         except:
           pass
       if (prov is None):

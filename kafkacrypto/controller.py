@@ -52,20 +52,21 @@ class KafkaCryptoController(KafkaCryptoBase):
     if (self._kc.config['group_id'] is None):
       self._logger.warning("Group ID not set, controller may miss messages.")
     if (provisioners is None):
-      provs = self._cryptostore.load_section('provisioners')
-      if provs!=None:
-        provisioners = []
-        for p in provs:
-          provisioners.append(provs[p])
-      if (provisioners is None):
-        # legacy
+      denylist = self._cryptostore.load_section('denylist')
+      if not (denylist is None):
+        denylist = denylist.values()
+      provisioners = self._cryptostore.load_section('provisioners')
+      if provisioners!=None:
+        provisioners = provisioners.values()
+      else:
+        # attempt legacy load
         with open(nodeID + ".provisioners", "rb") as provs:
           provisioners = msgpack.unpackb(provs.read())
         i = 0
         while i < len(provisioners):
           self._cryptostore.store_value('provisioners'+str(i),provisioners[i],section='provisioners')
           i += 1
-      provisioners = Provisioners(provisioners)
+      provisioners = Provisioners(provisioners, denylist=denylist)
     if (not hasattr(provisioners, 'reencrypt_request') or not inspect.isroutine(provisioners.reencrypt_request)):
       raise KafkaCryptoControllerError("Invalid provisioners source supplied!")
 

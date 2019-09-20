@@ -98,7 +98,7 @@ class KafkaCrypto(KafkaCryptoBase):
     self._last_time = time()
 
     # Add management frame TPS
-    for ntp in [self.MGMT_TOPIC_CHAINS, self.MGMT_TOPIC_BLACKLIST]:
+    for ntp in [self.MGMT_TOPIC_CHAINS, self.MGMT_TOPIC_DENYLIST]:
       self._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
       self._tps_offsets[ntp] = 0
       self._tps_updated = True
@@ -180,8 +180,8 @@ class KafkaCrypto(KafkaCryptoBase):
             newchain = self._cryptoexchange.replace_spk_chain(msg.value)
             if not (newchain is None):
               self._cryptostore.store_value('chain',newchain,section='crypto')
-          elif topic == self.MGMT_TOPIC_BLACKLIST:
-            self._logger.warning("Blacklist not yet implemented, but message %s received.", msg)
+          elif topic == self.MGMT_TOPIC_DENYLIST:
+            self._logger.warning("Denylist update message %s received, unimplemented in this user.", msg)
           else:
             # unknown object
             self._logger.warning("Unknown topic type in message: %s", msg)

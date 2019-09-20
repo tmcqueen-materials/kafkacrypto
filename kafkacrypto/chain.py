@@ -2,7 +2,7 @@ from time import time
 import pysodium
 import msgpack
 
-def process_chain(topic, rot, chain, usage, blacklist=None):
+def process_chain(topic, rot, chain, usage, denylist=None):
   #
   # chain should be a single msgpack array, with the next item in the array
   # signed by the entity with public key given in the current item. The first
@@ -15,7 +15,7 @@ def process_chain(topic, rot, chain, usage, blacklist=None):
   # but not needed to check the chain.
   #
   # Returns a ValueError if chain does not match topic or usage criteria, or
-  # uses a blacklisted key. 
+  # uses a denylisted key. 
   #
   # Otherwise, returns an array containing:
   # (0) The minimum max_age timestamp
@@ -34,8 +34,8 @@ def process_chain(topic, rot, chain, usage, blacklist=None):
   pk = None
   for npk in val:
     if not (pk is None):
-      if (not (blacklist is None)) and pk[2] in blacklist:
-        raise ValueError("Chain uses blacklisted signing key.")
+      if (not (denylist is None)) and pk[2] in denylist:
+        raise ValueError("Chain uses denylisted signing key.")
       pk = msgpack.unpackb(pysodium.crypto_sign_open(npk, pk[2]))
     else:
       pk = msgpack.unpackb(npk) # root is unsigned

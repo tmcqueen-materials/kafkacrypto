@@ -48,7 +48,7 @@ class KafkaCryptoBase(object):
                'CRYPTO_SUB_INTERVAL': 60,      # in s
                'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
                'MGMT_TOPIC_CHAINS': b'chains',
-               'MGMT_TOPIC_BLACKLIST': b'blacklist',
+               'MGMT_TOPIC_DENYLIST': b'denylist',
                'MGMT_POLL_INTERVAL': 500,      # in ms
                'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
@@ -118,8 +118,11 @@ class KafkaCryptoBase(object):
       self._cryptokey = cryptokey
       self._cryptostore.set_cryptokey(self._cryptokey)
 
+    denylist = self._cryptostore.load_section('denylist')
+    if not (denylist is None):
+      denylist = denylist.values()
     self._cryptoexchange = CryptoExchange(self._cryptostore.load_value('rot',section="crypto"),self._cryptostore.load_value('chainrot',section="crypto"),self._cryptostore.load_value('chain',section="crypto"),self._cryptokey,
-                           maxage=self._cryptostore.load_value('maxage',section="crypto"))
+                           maxage=self._cryptostore.load_value('maxage',section="crypto"),denylist=denylist)
 
     self._nodeID = nodeID
     self._lock = Lock()
