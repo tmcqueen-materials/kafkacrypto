@@ -1,3 +1,4 @@
+from kafka import KafkaConsumer as Consumer, KafkaProducer as Producer
 from kafkacrypto.cryptostore import CryptoStore
 import logging
 
@@ -62,6 +63,15 @@ class KafkaCryptoStore(CryptoStore):
         kafka_config['group_id'] = self._nodeID + ".kafkacrypto";
       else:
         kafka_config['group_id'] = self._nodeID
+    # Filter flags to those allowed by kafka producers or consumers
+    # we do not limit based on the use case, so that appropriate
+    # errors are generated if configurations are input incorrectly
+    kafka_config_filtered = {}
+    for key in kafka_config:
+      if key in Consumer.DEFAULT_CONFIG or key in Producer.DEFAULT_CONFIG:
+        kafka_config_filtered[key] = kafka_config[key]
+      else:
+        self._logger.warning("Filtering out %s:%s from kafka config.", str(key), str(kafka_config[key]))
     if 'group_id' in kafka_config and use!="consumer":
       kafka_config.pop('group_id',None)
     # do other producer/consumer filtering?
