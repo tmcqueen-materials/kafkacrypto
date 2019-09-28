@@ -51,25 +51,13 @@ class CryptoExchange(object):
     # common DH-derived key between that public key and our private encryption key.
     # Then there is at least one more additional item, random bytes:
     # (3) random bytes
-    # There then might be additional public keys:
-    # (4) public key
-    # ...
-    # Which, if present, are multiplied by our secret key and returned along
-    # with our public key in the response. This is only safe because:
-    #  1. A fresh ephemeral secret key is used for each call of encrypt_keys
-    #  2. We validate that the additional public keys are not equal to the
-    #     one used to derive the shared secret for this call
-    # Together, these ensure that an attacker cannot use the additional public
-    # keys feature to learn the common DH shared secret for another session.
+    # Currently items after this are ignored, and reserved for future use.
     #
     try:
       pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request',denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       epk = self.__cryptokey.get_epk(topic)
       pks = [pk[2]]
-      for extrapk in pk[4:]:
-        if (extrapk != pk[2]):
-          pks.append(extrapk)
       eks = self.__cryptokey.use_epk(topic, pks)
       ek = eks[0]
       eks[0] = epk
