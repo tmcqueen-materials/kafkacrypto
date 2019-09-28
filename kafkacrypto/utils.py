@@ -22,6 +22,8 @@ def str_decode(value):
             value = b64decode(value[7:].encode('utf-8'),validate=True)
           except binasciiError:
             value = None
+  elif default!=None:
+    return default
   return value
 
 def str_encode(value):

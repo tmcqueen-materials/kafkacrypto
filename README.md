@@ -104,6 +104,52 @@ logging.basicConfig(level=logging.WARNING)
 logging.getLogger("kafkacrypto").setLevel(level=logging.INFO) # set to logging.DEBUG for more verbosity
 ```
 
+## Universal Configuration File
+kafkacrypto separates the storage of cryptographic secrets and non-secret configuration information:
+  1. `my-node-ID.config`: Non-secret parameters, in Python ConfigParser format.
+  1. `my-node-ID.seed`: Next ratchet seed, when using default implementation of Ratchet. Key secret, should never be saved or transmitted plaintext.
+  1. `my-node-ID.crypto`: Identification private key, when using default implementation of Cryptokey. Key secret, should never be saved or transmitted plaintext.
+Alternative implementations of Ratchet and Cryptokey enable secrets to be managed used by communication with specialized hardware (e.g. HSMs).
+
+It is also possible to use `my-node-ID.config` to manage all configuration directives, including those that control Kafka. A sample implementation, which reads the node ID from `node_id` in the `DEFAULT` section is:
+```python
+#!/usr/bin/python3
+from kafkacrypto import KafkaCrypto, KafkaCryptoStore, KafkaConsumer, KafkaProducer
+
+# Process configuration file
+if len(argv) != 2:
+  exit('Invalid command line.')
+kcs = KafkaCryptoStore(argv[1])
+
+# Setup KafkaCrypto
+kcc = KafkaConsumer(**kcs.get_kafka_config('consumer',extra='crypto'))
+kcp = KafkaProducer(**kcs.get_kafka_config('producer',extra='crypto'))
+kc = KafkaCrypto(None,kcp,kcc,config=kcs)
+
+# read program specific values
+value1 = kcs.load_value('value1')
+value2 = kcs.load_value('value2')
+
+## End read configuration
+
+# Setup Kafka Consumer and Producer
+kafka_config = kcs.get_kafka_config('consumer')
+kafka_config['key_deserializer'] = kc.getKeyDeserializer()
+kafka_config['value_deserializer'] = kc.getValueDeserializer()
+consumer = KafkaConsumer(**kafka_config)
+kafka_config = kcs.get_kafka_config('producer')
+kafka_config['key_serializer'] = kc.getKeySerializer()
+kafka_config['value_serializer'] = kc.getValueSerializer()
+producer = KafkaProducer(**kafka_config)
+
+
+... your code here ...
+
+# Save new values
+kcs.store_value('value1', 'value-of-value1')
+kcs.store_value('value2', 'value-of-value2')
+```
+
 ## Kafka Python Interfaces
 kafkacrypto has been extensively tested with kafka-python. It will use confluent_kafka if available via a thin compatibility wrapper. Other wrappers can be added (submit a pull request!)
 

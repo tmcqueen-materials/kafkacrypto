@@ -14,5 +14,6 @@ __all__.extend(['KafkaConsumer', 'KafkaProducer', 'TopicPartition', 'TopicPartit
 from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.crypto import KafkaCrypto
 from kafkacrypto.controller import KafkaCryptoController
-__all__.extend([ 'KafkaCryptoMessage', 'KafkaCrypto', 'KafkaCryptoController'])
+from kafkacrypto.kafkacryptostore import KafkaCryptoStore
+__all__.extend([ 'KafkaCryptoMessage', 'KafkaCrypto', 'KafkaCryptoStore', 'KafkaCryptoController'])
 
