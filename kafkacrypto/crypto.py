@@ -340,6 +340,8 @@ class KafkaCrypto(KafkaCryptoBase):
        	    self._parent._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
             self._parent._tps_offsets[ntp] = 0
             self._parent._tps_updated = True
+            # when first subscribing, we wait a minimum number of intervals for initial key exchange
+            i = self._parent.DESER_INITIAL_WAIT_INTERVALS-1
           else:
             if not (root in self._parent._subs_needed):
               self._parent._subs_needed.append(root)
