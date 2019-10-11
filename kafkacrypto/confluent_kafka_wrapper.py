@@ -298,6 +298,9 @@ class KafkaProducer(Producer):
         self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
 
+  def poll(self, timeout=0):
+    super().poll(timeout)
+
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
     if key!=None:
       key = self.ks(topic, key)

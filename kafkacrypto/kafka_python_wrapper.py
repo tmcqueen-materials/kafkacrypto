@@ -1,4 +1,4 @@
-from kafka import KafkaConsumer as Consumer, KafkaProducer, TopicPartition
+from kafka import KafkaConsumer as Consumer, Producer, TopicPartition
 from collections import namedtuple
 
 TopicPartitionOffset = namedtuple("TopicPartitionOffset",
@@ -13,3 +13,7 @@ class KafkaConsumer(Consumer):
     for tpo in partoffs:
       if (tpo.offset > 0):
         super().seek(TopicPartition(tpo.topic,tpo.partition),tpo.offset)
+
+class KafkaProducer(Producer):
+  def poll(self, timeout=0):
+    pass
