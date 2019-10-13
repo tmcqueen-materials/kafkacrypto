@@ -3,7 +3,7 @@ import pysodium
 import msgpack
 import logging
 
-def process_chain(topic, rot, chain, usage, allowlist=None, denylist=None):
+def process_chain(topic, rot, chain, usage, explicit_topic=False, explicit_usage=False, allowlist=None, denylist=None):
   #
   # chain should be a single msgpack array, with the next item in the array
   # signed by the entity with public key given in the current item. The first
@@ -87,5 +87,9 @@ def process_chain(topic, rot, chain, usage, allowlist=None, denylist=None):
     if len(poison_usages) < 1:
       raise ValueError("Zero usages in allowed intersection set.")
     poison.append([b'usages',poison_usages])
+  if explicit_topic and ((poison_topics is None) or not (topic in poison_topics)):
+    raise ValueError("Explicit topic required but not found in intersection set.")
+  if explicit_usage and ((poison_usages is None) or not (usage in poison_usages)):
+    raise ValueError("Explicit usage required but not found in intersection set.")
   pk[1] = msgpack.packb(poison)
   return pk

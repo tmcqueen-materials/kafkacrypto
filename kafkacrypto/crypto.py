@@ -181,9 +181,17 @@ class KafkaCrypto(KafkaCryptoBase):
             if not (newchain is None):
               self._cryptostore.store_value('chain',newchain,section='crypto')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
-            self._logger.warning("Allowlist update message %s received, unimplemented in this user.", msg)
+            allow = self._cryptoexchange.add_allowlist(msg.value)
+            if not (allow is None):
+              for v in allow:
+                c = pysodium.randombytes(32).hex()
+                self._cryptostore.store_value('allow'+str(c),v,section='allowlist')
           elif topic == self.MGMT_TOPIC_DENYLIST:
-            self._logger.warning("Denylist update message %s received, unimplemented in this user.", msg)
+            deny = self._cryptoexchange.add_denylist(msg.value)
+            if not (deny is None):
+              for v in deny:
+                c = pysodium.randombytes(32).hex()
+       	       	self._cryptostore.store_value('deny'+str(c),v,section='denylist')
           else:
             # unknown object
             self._logger.warning("Unknown topic type in message: %s", msg)

@@ -41,8 +41,14 @@ class CryptoExchange(object):
     self.__rot = rot
     self.__chainrot = chainrot
     self.__spk_chain = []
-    self.__allowlist = allowlist
-    self.__denylist = denylist
+    if not (allowlist is None):
+      self.__allowlist = allowlist
+    else:
+      self.__allowlist = []
+    if not (denylist is None):
+      self.__denylist = denylist
+    else:
+      self.__denylist = []
     self.__update_spk_chain(chain)
 
   def encrypt_keys(self, keyidxs, keys, topic, msgkey=None, msgval=None):
@@ -157,6 +163,28 @@ class CryptoExchange(object):
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
     return (None, None)
+
+  def add_allowlist(self, allow):
+    try:
+      # explicit_usage = True critical to prevent truncated chain forced allowlisting attacks
+      pk = process_chain(b'',self.__rot,allow,b'key-allowlist',explicit_usage=True,allowlist=self.__allowlist,denylist=self.__denylist)
+      if (len(pk) >= 3):
+        self.__allowlist.append(pk[2])
+        self._logger.warning("Added key %s to allowlist",pk[2])
+        return [pk[2]]
+    except ValueError:
+      return None
+
+  def add_denylist(self, deny):
+    try:
+      # explicit_usage = True critical to prevent truncated chain forced denylisting attacks
+      pk = process_chain(b'',self.__rot,deny,b'key-denylist',explicit_usage=True,allowlist=self.__allowlist,denylist=self.__denylist)
+      if (len(pk) >= 3):
+        self.__denylist.append(pk[2])
+        self._logger.warning("Added key %s to denylist",pk[2])
+       	return [pk[2]]
+    except ValueError:
+      return None
 
   def replace_spk_chain(self, newchain):
     try:
