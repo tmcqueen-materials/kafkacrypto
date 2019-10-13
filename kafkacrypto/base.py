@@ -133,10 +133,10 @@ class KafkaCryptoBase(object):
       self._cryptokey = cryptokey
       self._cryptostore.set_cryptokey(self._cryptokey)
 
-    allowlist = self._cryptostore.load_section('allowlist',defaults=false)
+    allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (allowlist is None):
       allowlist = allowlist.values()
-    denylist = self._cryptostore.load_section('denylist',defaults=false)
+    denylist = self._cryptostore.load_section('denylist',defaults=False)
     if not (denylist is None):
       denylist = denylist.values()
     self._cryptoexchange = CryptoExchange(self._cryptostore.load_value('rot',section="crypto"),self._cryptostore.load_value('chainrot',section="crypto"),self._cryptostore.load_value('chain',section="crypto"),self._cryptokey,
