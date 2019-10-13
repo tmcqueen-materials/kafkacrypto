@@ -1,8 +1,9 @@
 from time import time
 import pysodium
 import msgpack
+import logging
 
-def process_chain(topic, rot, chain, usage, denylist=None):
+def process_chain(topic, rot, chain, usage, allowlist=None, denylist=None):
   #
   # chain should be a single msgpack array, with the next item in the array
   # signed by the entity with public key given in the current item. The first
@@ -15,7 +16,9 @@ def process_chain(topic, rot, chain, usage, denylist=None):
   # but not needed to check the chain.
   #
   # Returns a ValueError if chain does not match topic or usage criteria, or
-  # uses a denylisted key. 
+  # uses a denylisted key, unless there is ultimately a chain between
+  # an allowlisted key and the final item with no denylisted keys.
+  # The final item might itself be the allowlisted key.
   #
   # Otherwise, returns an array containing:
   # (0) The minimum max_age timestamp
@@ -25,6 +28,7 @@ def process_chain(topic, rot, chain, usage, denylist=None):
   # And any items in (3)+ from the final item.
   #
   min_max_age = 0
+  denylisted = False
   poison_topics = None
   poison_usages = None
   if (len(rot) > 0):
@@ -35,7 +39,11 @@ def process_chain(topic, rot, chain, usage, denylist=None):
   for npk in val:
     if not (pk is None):
       if (not (denylist is None)) and pk[2] in denylist:
-        raise ValueError("Chain uses denylisted signing key.")
+        denylisted = True
+        logging.warning("Chain uses denylisted signing key %s.",pk[2])
+        # this is not immediately fatal because a subkey might be allowlisted
+      elif (not (allowlist is None)) and pk[2] in allowlist:
+        denylisted = False
       pk = msgpack.unpackb(pysodium.crypto_sign_open(npk, pk[2]))
     else:
       pk = msgpack.unpackb(npk) # root is unsigned
@@ -63,6 +71,12 @@ def process_chain(topic, rot, chain, usage, denylist=None):
        	  poison_usages = list(set(poison_usages).intersection(ku[1]))
       else:
         raise ValueError("Unknown chain signature poison")
+  # must check if leaf key is in allow list
+  if (not (pk is None)) and (not (allowlist is None)) and pk[2] in allowlist:
+    denylisted = False
+  # make sure our chain doesn't have breaking denylisted keys
+  if denylisted:
+    raise ValueError("Chain uses denylisted public key")
   pk[0] = min_max_age
   poison = []
   if not (poison_topics is None):

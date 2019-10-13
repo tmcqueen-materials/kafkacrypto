@@ -19,6 +19,8 @@ class CryptoExchange(object):
                            Optional, default: 86400 (= 1 day)
         randombytes (int): Number of random bytes to add in constructing
                            shared secrets. Optional, minimum default: 32
+        allowlist (array): Array of allowlisted public keys. Optional,
+                           default: None
          denylist (array): Array of denylisted public keys. Optional,
                            default: None
   """
@@ -31,7 +33,7 @@ class CryptoExchange(object):
   #   __spk_chain: signing public key chain to root of trust, as array
   #   __cryptokey: Provider of operations involving private keys
   #
-  def __init__(self, rot, chainrot, chain, cryptokey, maxage=0, randombytes=0, denylist=None):
+  def __init__(self, rot, chainrot, chain, cryptokey, maxage=0, randombytes=0, allowlist=None, denylist=None):
     self._logger = logging.getLogger(__name__)
     self.__maxage = maxage if maxage>0 else 86400
     self.__randombytes = randombytes if randombytes>=32 else 32
@@ -39,6 +41,7 @@ class CryptoExchange(object):
     self.__rot = rot
     self.__chainrot = chainrot
     self.__spk_chain = []
+    self.__allowlist = allowlist
     self.__denylist = denylist
     self.__update_spk_chain(chain)
 
@@ -54,7 +57,7 @@ class CryptoExchange(object):
     # Currently items after this are ignored, and reserved for future use.
     #
     try:
-      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request',denylist=self.__denylist)
+      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       epk = self.__cryptokey.get_epk(topic)
       pks = [pk[2]]
@@ -98,7 +101,7 @@ class CryptoExchange(object):
     # secret, followed by the actual key message.
     #
     try:
-      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt',denylist=self.__denylist)
+      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 5):
         raise ValueError
       random0 = pk[3][0]
@@ -168,7 +171,7 @@ class CryptoExchange(object):
     # first must check it is a valid chain ending in our signing public key.
     #
     try:
-      pk = process_chain(b'',self.__chainrot,newchain,b'',denylist=self.__denylist)
+      pk = process_chain(b'',self.__chainrot,newchain,b'',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 3 or pk[2] != self.__cryptokey.get_spk()):
         raise ValueError("New chain does not match current signing public key,")
       # If we get here, it is a valid chain. So now we need
