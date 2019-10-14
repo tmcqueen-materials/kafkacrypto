@@ -3,15 +3,13 @@ import traceback
 import pysodium
 import msgpack
 import logging
-from kafkacrypto.chain import process_chain
+from kafkacrypto.chain import process_chain, key_in_list
 
 class CryptoExchange(object):
   """Class implementing the key exchange protocol used to transmit/receive
      current data encryption keys. 
 
   Keyword Arguments:
-              rot (bytes): Root of trust for received messages.
-         chainrot (bytes): Root of trust for sent messages.
             chain (bytes): Certificate chain for our signing public key.
           cryptokey (obj): Object implementing the necessary public/private 
                            key functions (get/sign_spk,get/use_epk).
@@ -26,20 +24,16 @@ class CryptoExchange(object):
   """
   #
   # Per instance, defined in init
-  #         __rot: Root of Trust for received messages
-  #    __chainrot: Root of Trust for our trust chain
   #      __maxage: Maximum age (seconds)
   # __randombytes: Random bytes added to exchange
   #   __spk_chain: signing public key chain to root of trust, as array
   #   __cryptokey: Provider of operations involving private keys
   #
-  def __init__(self, rot, chainrot, chain, cryptokey, maxage=0, randombytes=0, allowlist=None, denylist=None):
+  def __init__(self, chain, cryptokey, maxage=0, randombytes=0, allowlist=None, denylist=None):
     self._logger = logging.getLogger(__name__)
     self.__maxage = maxage if maxage>0 else 86400
     self.__randombytes = randombytes if randombytes>=32 else 32
     self.__cryptokey = cryptokey
-    self.__rot = rot
-    self.__chainrot = chainrot
     self.__spk_chain = []
     if not (allowlist is None):
       self.__allowlist = allowlist
@@ -63,7 +57,7 @@ class CryptoExchange(object):
     # Currently items after this are ignored, and reserved for future use.
     #
     try:
-      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk = process_chain(msgval,topic,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       epk = self.__cryptokey.get_epk(topic)
       pks = [pk[2]]
@@ -107,7 +101,7 @@ class CryptoExchange(object):
     # secret, followed by the actual key message.
     #
     try:
-      pk = process_chain(topic,self.__rot,msgval,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk = process_chain(msgval,topic,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 5):
         raise ValueError
       random0 = pk[3][0]
@@ -166,23 +160,33 @@ class CryptoExchange(object):
 
   def add_allowlist(self, allow):
     try:
-      # explicit_usage = True critical to prevent truncated chain forced allowlisting attacks
-      pk = process_chain(b'',self.__rot,allow,b'key-allowlist',explicit_usage=True,allowlist=self.__allowlist,denylist=self.__denylist)
-      if (len(pk) >= 3):
-        self.__allowlist.append(pk[2])
-        self._logger.warning("Added key %s to allowlist",pk[2])
-        return [pk[2]]
+      pk = process_chain(allow,None,b'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
+      if (len(pk) >= 4):
+        apk = msgpack.unpackb(pk[3])
+        if pk[2] != apk[2]:
+          raise ValueError("Mismatch in keys for allowlist.")
+        if key_in_list(pk[3],self.__allowlist)==None:
+          self.__allowlist.append(pk[3])
+        else:
+          raise ValueError("Key already in allowlist!")
+        self._logger.warning("Added key %s to allowlist",pk[2].hex())
+        return pk[3]
     except ValueError:
       return None
 
   def add_denylist(self, deny):
     try:
-      # explicit_usage = True critical to prevent truncated chain forced denylisting attacks
-      pk = process_chain(b'',self.__rot,deny,b'key-denylist',explicit_usage=True,allowlist=self.__allowlist,denylist=self.__denylist)
-      if (len(pk) >= 3):
-        self.__denylist.append(pk[2])
-        self._logger.warning("Added key %s to denylist",pk[2])
-       	return [pk[2]]
+      pk = process_chain(deny,None,b'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
+      if (len(pk) >= 4):
+        apk = msgpack.unpackb(pk[3])
+        if pk[2] != apk[2]:
+          raise ValueError("Mismatch in keys for denylist.")
+        if key_in_list(pk[3],self.__denylist)==None:
+          self.__denylist.append(pk[3])
+        else:
+          raise ValueError("Key already in denylist!")
+        self._logger.warning("Added key %s to denylist",pk[2].hex())
+       	return pk[3]
     except ValueError:
       return None
 
@@ -199,7 +203,7 @@ class CryptoExchange(object):
     # first must check it is a valid chain ending in our signing public key.
     #
     try:
-      pk = process_chain(b'',self.__chainrot,newchain,b'',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 3 or pk[2] != self.__cryptokey.get_spk()):
         raise ValueError("New chain does not match current signing public key,")
       # If we get here, it is a valid chain. So now we need

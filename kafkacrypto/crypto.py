@@ -183,15 +183,13 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
             allow = self._cryptoexchange.add_allowlist(msg.value)
             if not (allow is None):
-              for v in allow:
-                c = pysodium.randombytes(32).hex()
-                self._cryptostore.store_value('allow'+str(c),v,section='allowlist')
+              c = pysodium.crypto_hash_sha256(allow)
+              self._cryptostore.store_value(c,allow,section='allowlist')
           elif topic == self.MGMT_TOPIC_DENYLIST:
             deny = self._cryptoexchange.add_denylist(msg.value)
             if not (deny is None):
-              for v in deny:
-                c = pysodium.randombytes(32).hex()
-       	       	self._cryptostore.store_value('deny'+str(c),v,section='denylist')
+              c = pysodium.crypto_hash_sha256(deny)
+       	      self._cryptostore.store_value(c,deny,section='denylist')
           else:
             # unknown object
             self._logger.warning("Unknown topic type in message: %s", msg)

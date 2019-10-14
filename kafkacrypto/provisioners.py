@@ -8,16 +8,10 @@ class Provisioners(object):
   """Class validating key requests
 
   Keyword Arguments:
-      provisioners (array): List of public keys of allowed provisioners
-         allowlist (array): optional list of allowlisted public keys
+         allowlist (array): List of allowlisted public keys (provisioners)
           denylist (array): Optional list of denylisted public keys
   """
-  #
-  # Per instance, defined in init
-  #      __spks: list of allowed provisioner public keys
-  #
-  def __init__(self, provisioners=[], allowlist=None, denylist=None):
-    self.__spks = provisioners
+  def __init__(self, allowlist=None, denylist=None):
     self.__allowlist = allowlist
     self.__denylist = denylist
 
@@ -30,12 +24,11 @@ class Provisioners(object):
     #
     try:
       pk = None
-      for prov in self.__spks:
-        try:
-          pk = process_chain(topic,prov,msgval,b'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
-        except:
-          pass
-      if (prov is None):
+      try:
+        pk = process_chain(msgval,topic,b'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
+      except:
+        pass
+      if (pk is None):
         raise ValueError("Chain not signed by authorized provisioner.")
       tmp, msg = cryptoexchange.signed_epk(topic, epk=pk[2])
     except Exception as e:

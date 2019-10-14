@@ -52,24 +52,20 @@ class KafkaCryptoController(KafkaCryptoBase):
     if (self._kc.config['group_id'] is None):
       self._logger.warning("Group ID not set, controller may miss messages.")
     if (provisioners is None):
+      # attempt legacy provisioners load
+      provs = self._cryptostore.load_section('provisioners',defaults=False)
+      if provs!=None:
+        for p in provs:
+          k = pysodium.crypto_hash_sha256(provs[p])
+          self._cryptostore.store_value(k,provs[p],section='allowlist')
+          self._cryptostore.store_value(p,None,section='provisioners')
       allowlist = self._cryptostore.load_section('allowlist',defaults=False)
       if not (allowlist is None):
         allowlist = allowlist.values()
       denylist = self._cryptostore.load_section('denylist',defaults=False)
       if not (denylist is None):
         denylist = denylist.values()
-      provisioners = self._cryptostore.load_section('provisioners')
-      if provisioners!=None:
-        provisioners = provisioners.values()
-      else:
-        # attempt legacy load
-        with open(nodeID + ".provisioners", "rb") as provs:
-          provisioners = msgpack.unpackb(provs.read())
-        i = 0
-        while i < len(provisioners):
-          self._cryptostore.store_value('provisioners'+str(i),provisioners[i],section='provisioners')
-          i += 1
-      provisioners = Provisioners(provisioners, allowlist=allowlist, denylist=denylist)
+      provisioners = Provisioners(allowlist=allowlist, denylist=denylist)
     if (not hasattr(provisioners, 'reencrypt_request') or not inspect.isroutine(provisioners.reencrypt_request)):
       raise KafkaCryptoControllerError("Invalid provisioners source supplied!")
 

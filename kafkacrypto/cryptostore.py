@@ -93,7 +93,10 @@ class CryptoStore(object):
     self._logger.debug("Storing name=%s, value=%s in %s", name, value, section)
     if not (section in self.__config):
       self.__config[section] = {}
-    self.__config[section][str_encode(name)] = str_encode(value)
+    if value!=None:
+      self.__config[section][str_encode(name)] = str_encode(value)
+    else:
+      self.__config[section].pop(str_encode(name),None)
     self.__file.seek(0,0)
     self.__config.write(self.__file)
     self.__file.flush()

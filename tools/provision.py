@@ -107,7 +107,7 @@ else:
   # Everyone else by the Chain ROT (may = ROT)
   _msgchkrot = _msgchainrot
 assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
-pk = process_chain(b'',_msgchkrot,_msgchains[key],b'')
+pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])
 assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
 
 topics = None
@@ -118,10 +118,23 @@ while topics is None:
     ans = input('Are you sure you want to allow all topics (y/N)?')
     if (len(ans) == 0 or ans[0].lower() != 'y'):
       topics = None
+    else:
+      topics = [b'^.*$']
+
+pathlen = ''
+pathlen = input('Enter a maximum pathlength (-1 for no limit; default 0):')
+if len(pathlen)<1:
+  pathlen=0
+else:
+  pathlen=int(pathlen)
 
 print('Root topics will be:')
 print(topics)
 print('Lifetime of initial crypto configuration will be', _lifetime/86400, 'days.')
+if pathlen!=-1:
+  print('Maximum pathlength is', pathlen)
+else:
+  print('No maximum pathlength')
 print('')
 
 ans = ''
@@ -144,10 +157,12 @@ else:
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 pk,sk = pysodium.crypto_sign_keypair()
+poison = [[b'usages',_usages[key]]]
 if len(topics) > 0:
-  poison = msgpack.packb([[b'topics',topics],[b'usages',_usages[key]]])
-else:
-  poison = msgpack.packb([[b'usages',_usages[key]]])
+  poison.append([b'topics',topics])
+if pathlen != -1:
+  poison.append([b'pathlen',pathlen])
+poison = msgpack.packb(poison)
 msg = [time()+_lifetime, poison, pk]
 msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
 chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
@@ -159,32 +174,42 @@ with open(nodeID + ".crypto", "wb") as f:
 cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
 cfg['DEFAULT'] = {}
 cfg['DEFAULT']['node_id'] = str_encode(nodeID)
-cfg['kafka'] = {}
-cfg['kafka-crypto'] = {}
-cfg[str_encode(nodeID+"-crypto")] = {}
-cfg[str_encode(nodeID+"-crypto")]['maxage'] = str_encode(_lifetime)
-cfg[str_encode(nodeID+"-crypto")]['rot'] = str_encode(_msgrot)
-cfg[str_encode(nodeID+"-crypto")]['chainrot'] = str_encode(_msgchkrot)
-cfg[str_encode(nodeID+"-crypto")]['chain'] = str_encode(chain)
+cfg[str_encode(nodeID + "-kafka")] = {}
+cfg[str_encode(nodeID + "-kafka-crypto")] = {}
+cfg[str_encode(nodeID + "-kafka-consumer")] = {}
+cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
+cfg[str_encode(nodeID + "-kafka-producer")] = {}
+cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
+cfg[str_encode(nodeID + "-crypto")] = {}
+cfg[str_encode(nodeID + "-crypto")]['maxage'] = str_encode(_lifetime)
+cfg[str_encode(nodeID + "-crypto")]['chain'] = str_encode(chain)
+cfg[str_encode(nodeID + "-allowlist")] = {}
+cfg[str_encode(nodeID + "-allowlist")]['rot'] = str_encode(_msgrot)
+if _msgchkrot != _msgrot:
+  cfg[str_encode(nodeID + "-allowlist")]['chainrot'] = str_encode(_msgchkrot)
 # If controller, list of provisioners
-if (choice == 1):
-  cfg[str_encode(nodeID+"-provisioners")] = {}
-  cfg[str_encode(nodeID+"-provisioners")]['provisioners0'] = str_encode(_msgchainrot)
+if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
+  cfg[str_encode(nodeID + "-allowlist")]['provisioners0'] = str_encode(_msgchainrot)
 cfg[str_encode(nodeID)] = {}
 cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
 cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
-DEFAULTS = { 'TOPIC_SEPARATOR': b'.',   # separator of topic name components, used to find root name and subs/keys
-               'TOPIC_SUFFIX_REQS': b'.reqs', # suffixes should begin with separator or things will not work!
+DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name components, used to find root name and subs/keys
+               'TOPIC_SUFFIX_REQS': b'.reqs',  # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': b'.keys',
                'TOPIC_SUFFIX_SUBS': b'.subs', # change to be same as REQS if this is a controller-less setup
                'CRYPTO_MAX_PGEN_AGE': 604800,  # in s
                'CRYPTO_SUB_INTERVAL': 60,      # in s
                'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
-               'MGMT_POLL_INTERVAL': 500, # in ms
-               'MGMT_POLL_RECORDS': 8,    # poll fetches by topic-partition. So limit number per call to sample all tps
+               'MGMT_TOPIC_CHAINS': b'chains',
+               'MGMT_TOPIC_ALLOWLIST': b'allowlist',
+               'MGMT_TOPIC_DENYLIST': b'denylist',
+               'MGMT_POLL_INTERVAL': 500,      # in ms
+               'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
                'MGMT_LONG_KEYINDEX': True,
+               'DESER_INITIAL_WAIT_INTERVALS': 10,
              }
+
 if ((choice == 2 or choice == 4) and sole == True):
   DEFAULTS['MGMT_LONG_KEYINDEX'] = False
 
