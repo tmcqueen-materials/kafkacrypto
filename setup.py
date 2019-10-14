@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
   name="kafkacrypto",
-  version="0.9.8",
+  version="0.9.8a",
   license="GNU GPLv2",
   keywords="kafka kafka-crypto kafka-security security crypo",
   author="Tyrel M. McQueen",
