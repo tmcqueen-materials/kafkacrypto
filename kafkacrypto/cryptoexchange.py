@@ -164,14 +164,17 @@ class CryptoExchange(object):
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3])
         if pk[2] != apk[2]:
+          self._logger.info("Mismatch in keys for allowlist %s vs %s.",pk[2].hex(),apk[2].hex())
           raise ValueError("Mismatch in keys for allowlist.")
         if key_in_list(pk[3],self.__allowlist)==None:
           self.__allowlist.append(pk[3])
         else:
+          self._logger.info("Key %s already in allowlist",pk[2].hex())
           raise ValueError("Key already in allowlist!")
         self._logger.warning("Added key %s to allowlist",pk[2].hex())
         return pk[3]
-    except ValueError:
+    except ValueError as e:
+      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
   def add_denylist(self, deny):
@@ -180,21 +183,25 @@ class CryptoExchange(object):
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3])
         if pk[2] != apk[2]:
+          self._logger.info("Mismatch in keys for denylist %s vs %s.",pk[2].hex(),apk[2].hex())
           raise ValueError("Mismatch in keys for denylist.")
         if key_in_list(pk[3],self.__denylist)==None:
           self.__denylist.append(pk[3])
         else:
+          self._logger.info("Key %s already in denylist",pk[2].hex())
           raise ValueError("Key already in denylist!")
         self._logger.warning("Added key %s to denylist",pk[2].hex())
        	return pk[3]
-    except ValueError:
+    except ValueError as e:
+      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
   def replace_spk_chain(self, newchain):
     try:
       self.__update_spk_chain(newchain)
       return newchain
-    except ValueError:
+    except ValueError as e:
+      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
   def __update_spk_chain(self, newchain):

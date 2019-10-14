@@ -177,15 +177,18 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._cgens[root][nki]['secret'] = nk
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
+            self._logger.info("Received new chain message: %s", msg)
             newchain = self._cryptoexchange.replace_spk_chain(msg.value)
             if not (newchain is None):
               self._cryptostore.store_value('chain',newchain,section='crypto')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
+            self._logger.info("Received new allowlist message: %s", msg)
             allow = self._cryptoexchange.add_allowlist(msg.value)
             if not (allow is None):
               c = pysodium.crypto_hash_sha256(allow)
               self._cryptostore.store_value(c,allow,section='allowlist')
           elif topic == self.MGMT_TOPIC_DENYLIST:
+            self._logger.info("Received new denylist message: %s", msg)
             deny = self._cryptoexchange.add_denylist(msg.value)
             if not (deny is None):
               c = pysodium.crypto_hash_sha256(deny)
