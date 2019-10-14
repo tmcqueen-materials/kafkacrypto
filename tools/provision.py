@@ -122,9 +122,9 @@ while topics is None:
       topics = [b'^.*$']
 
 pathlen = ''
-pathlen = input('Enter a maximum pathlength (-1 for no limit; default 0):')
+pathlen = input('Enter a maximum pathlength (-1 for no limit; default 1):')
 if len(pathlen)<1:
-  pathlen=0
+  pathlen=1
 else:
   pathlen=int(pathlen)
 
