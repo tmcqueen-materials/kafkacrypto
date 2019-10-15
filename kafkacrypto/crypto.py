@@ -65,7 +65,7 @@ class KafkaCrypto(KafkaCryptoBase):
   #       _pgens: dict of production encryption key generators, indexed by root
   #               topic, then by 'keyidx', and 'key'/'value'/'secret'.
   #   _new_pgens: Set to true when new pgens were added
-  #      _cwaits: dict of statuses on waitin for different key indices indexed by 
+  #      _cwaits: dict of statuses on waiting for different key indices indexed by 
   #               root topic and then key index. Used to implement the
   #               wait once logic to ensure no undecryptable messages at
   #               transient key change events.
