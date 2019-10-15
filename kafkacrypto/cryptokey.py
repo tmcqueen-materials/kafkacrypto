@@ -18,8 +18,8 @@ class CryptoKey(object):
   #       __ssk: signing private (secret) key
   #        __ek: private key for (un)wrapping opaque bytes
   # Generated ephemerially, on demand:
-  #       __epk: dict of encrypting public keys (by topic)
-  #       __esk: dict of encrypting private (secret) keys (by topic)
+  #       __epk: dict of encrypting public keys (by topic and usage)
+  #       __esk: dict of encrypting private (secret) keys (by topic and usage)
   #
   def __init__(self, file):
     self._logger = logging.getLogger(__name__)
@@ -50,25 +50,29 @@ class CryptoKey(object):
   def sign_spk(self, msg):
     return pysodium.crypto_sign(msg, self.__ssk)
 
-  def get_epk(self, topic):
+  def get_epk(self, topic, usage):
     #
     # returns the public key of a new ephemeral encryption key for the specified topic
     #
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
-    self.__generate_esk(topic)
-    return self.__epk[topic]
+    if (isinstance(usage,(str))):
+      usage = bytes(usage, 'utf-8')
+    self.__generate_esk(topic, usage)
+    return self.__epk[topic][usage]
 
-  def use_epk(self, topic, pks, clear=True):
+  def use_epk(self, topic, usage, pks, clear=True):
     rv = []
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
-    if not topic in self.__esk:
+    if (isinstance(usage,(str))):
+      usage = bytes(usage, 'utf-8')
+    if not topic in self.__esk or not usage in self.__esk[topic]:
       return rv
     for pk in pks:
-      rv.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic],pk))
+      rv.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic][usage],pk))
     if clear:
-      self.__remove_esk(topic)
+      self.__remove_esk(topic, usage)
     return rv
 
   def wrap_opaque(self, crypto_opaque):
@@ -81,11 +85,14 @@ class CryptoKey(object):
     except:
       return None
 
-  def __generate_esk(self, topic):
+  def __generate_esk(self, topic, usage):
     # ephemeral keys are use once only, so always ok to overwrite
-    self.__esk[topic] = pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES)
-    self.__epk[topic] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic])
+    if not topic in self.__esk or not topic in self.__epk:
+      self.__esk[topic] = {}
+      self.__epk[topic] = {}
+    self.__esk[topic][usage] = pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES)
+    self.__epk[topic][usage] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic][usage])
 
-  def __remove_esk(self, topic):
-    self.__esk.pop(topic)
-    self.__epk.pop(topic)
+  def __remove_esk(self, topic, usage):
+    self.__esk[topic].pop(usage)
+    self.__epk[topic].pop(usage)

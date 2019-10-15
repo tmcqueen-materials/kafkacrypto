@@ -59,9 +59,9 @@ class CryptoExchange(object):
     try:
       pk = process_chain(msgval,topic,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
-      epk = self.__cryptokey.get_epk(topic)
+      epk = self.__cryptokey.get_epk(topic, b'encrypt_keys')
       pks = [pk[2]]
-      eks = self.__cryptokey.use_epk(topic, pks)
+      eks = self.__cryptokey.use_epk(topic, b'encrypt_keys',pks)
       ek = eks[0]
       eks[0] = epk
       random0 = pk[3]
@@ -108,7 +108,7 @@ class CryptoExchange(object):
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
       msg = pk[4][pysodium.crypto_secretbox_NONCEBYTES:]
-      eks = self.__cryptokey.use_epk(topic, pk[2], clear=False)
+      eks = self.__cryptokey.use_epk(topic, b'decrypt_keys', pk[2], clear=False)
       for ck in eks:
         # Construct candidate shared secrets as sha256(topic || random0 || random1 || our_private*their_public)
         ss = pysodium.crypto_hash_sha256(topic + random0 + random1 + ck)[0:pysodium.crypto_secretbox_KEYBYTES]
@@ -123,7 +123,8 @@ class CryptoExchange(object):
         except:
           pass
         else:
-          self.__cryptokey.use_epk(topic, [])
+          # clear the esk/epk we just used
+          self.__cryptokey.use_epk(topic, b'decrypt_keys', [])
           return rvs
       raise ValueError
     except Exception as e:
@@ -141,7 +142,7 @@ class CryptoExchange(object):
     #
     try:
       if epk is None:
-        epk = self.__cryptokey.get_epk(topic)
+        epk = self.__cryptokey.get_epk(topic,b'decrypt_keys')
       random0 = pysodium.randombytes(self.__randombytes)
       # we allow either direct-to-producer or via-controller key establishment
       poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt-request',b'key-encrypt-subscribe']]])
