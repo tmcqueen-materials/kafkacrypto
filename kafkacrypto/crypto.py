@@ -65,6 +65,10 @@ class KafkaCrypto(KafkaCryptoBase):
   #       _pgens: dict of production encryption key generators, indexed by root
   #               topic, then by 'keyidx', and 'key'/'value'/'secret'.
   #   _new_pgens: Set to true when new pgens were added
+  #      _cwaits: dict of statuses on waitin for different key indices indexed by 
+  #               root topic and then key index. Used to implement the
+  #               wait once logic to ensure no undecryptable messages at
+  #               transient key change events.
   #       _cgens: dict of consumption encryption key generators, indexed by root
   #               topic. Each topic has a list of available generators, indexed
   #               by 'keyidx', and finally 'key'/'value'/'secret'.
@@ -92,6 +96,7 @@ class KafkaCrypto(KafkaCryptoBase):
     self._cur_pgens = {}
     self._pgens = {}
     self._new_pgens = False
+    self._cwaits = {}
     self._cgens = {}
     self._subs_needed = []
     self._subs_last = {}
@@ -175,6 +180,8 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._cgens[root][nki] = {}
                 self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
                 self._cgens[root][nki]['secret'] = nk
+                if root in self._cwaits.keys():
+                  self._cwaits[root].pop(nki, None)
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
@@ -342,20 +349,33 @@ class KafkaCrypto(KafkaCryptoBase):
       salt = msg[1]
       msg = msg[2]
       self._parent._lock.acquire()
-      i = self.MAX_WAIT_INTERVALS+1
+      i = 1
+      initial_waiter = False
       try:
         while ((not (root in self._parent._cgens.keys()) or not (ki in self._parent._cgens[root].keys())) and i>0):
-          i = i-1
+          if (not (root in self._parent._cwaits.keys()) or not (ki in self._parent._cwaits[root].keys())):
+            self._parent._logger.debug("Setting initial wait for root=%s, key index=%s.", root, ki)
+            initial_waiter = True
+            # first time we see a topic/key index pair, we wait the initial interval for key exchange
+            i = self._parent.DESER_INITIAL_WAIT_INTERVALS
+            if not (root in self._parent._cwaits.keys()):
+              self._parent._cwaits[root] = {}
+            self._parent._cwaits[root][ki] = i
+          elif initial_waiter:
+            self._parent._cwaits[root][ki] -= 1
+          elif (root in self._parent._cwaits.keys()) and (ki in self._parent._cwaits[root].keys()):
+            i = self._parent._cwaits[root][ki]
+          else:
+            i = self.MAX_WAIT_INTERVALS
        	  ntp =	(root+self._parent.TOPIC_SUFFIX_KEYS)
        	  if not (ntp in self._parent._tps):
        	    self._parent._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
             self._parent._tps_offsets[ntp] = 0
             self._parent._tps_updated = True
-            # when first subscribing, we wait a minimum number of intervals for initial key exchange
-            i = self._parent.DESER_INITIAL_WAIT_INTERVALS-1
           else:
             if not (root in self._parent._subs_needed):
               self._parent._subs_needed.append(root)
+          i=i-1
           if (i > 0):
             self._parent._lock.release()
             sleep(self.WAIT_INTERVAL)
