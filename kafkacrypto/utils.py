@@ -5,7 +5,7 @@ from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 
-def str_decode(value):
+def str_decode(value, iskey=False):
   if value!=None:
     try:
       value = int(value)
@@ -22,16 +22,22 @@ def str_decode(value):
             value = b64decode(value[7:].encode('utf-8'),validate=True)
           except binasciiError:
             value = None
+        elif iskey:
+          # case insensitive keys
+          value = value.lower()
   elif default!=None:
     return default
   return value
 
-def str_encode(value):
+def str_encode(value, iskey=False):
   if value!=None:
     if isinstance(value,(int,float,bool)):
       value = str(value)
     if not isinstance(value,(str,)):
       value = 'base64#' + b64encode(value).decode('utf-8')
+    elif iskey:
+      # case insensitive keys
+      value = value.lower()
   return value
 
 class PasswordProvisioner(object):

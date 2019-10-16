@@ -33,6 +33,9 @@ class CryptoStore(object):
     self.__file = file
     self.__file.seek(0,0)
     self.__config = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
+    # enable keys to be stored base64 too by making keys case sensitive. Other functions here
+    # then restore the expected case insensitive behavior for standard keys
+    self.__config.optionxform = str
     self.__config.read_file(self.__file)
     nodeIDfile = self.__config['DEFAULT'].get('node_id', None)
     if (not isinstance(nodeID, (str)) or len(nodeID) < 1):
@@ -57,16 +60,16 @@ class CryptoStore(object):
       self._logger.debug("Attempting to load section %s", section)
       rv = {}
       for key in self.__config[section]:
-        rv[str_decode(key)] = str_decode(self.__config[section][key])
+        rv[str_decode(key,iskey=True)] = str_decode(self.__config[section][key])
     elif defaults:
       self._logger.debug("Loading defaults for section %s", section)
       rv = {}
       for key in self.__config['DEFAULT']:
-        rv[str_decode(key)] = str_decode(self.__config['DEFAULT'][key])
+        rv[str_decode(key,iskey=True)] = str_decode(self.__config['DEFAULT'][key])
     if not defaults and rv!=None:
       for key in self.__config['DEFAULT']:
-        if str_decode(key) in rv and str_decode(self.__config['DEFAULT'][key]) == rv[str_decode(key)]:
-          rv.pop(str_decode(key), None)
+        if str_decode(key,iskey=True) in rv and str_decode(self.__config['DEFAULT'][key]) == rv[str_decode(key,iskey=True)]:
+          rv.pop(str_decode(key,iskey=True), None)
     return rv
 
   def load_value(self, name, section=None, default=None):
@@ -77,8 +80,8 @@ class CryptoStore(object):
     section = str_encode(section)
     self._logger.debug("Attempting to load value for %s from %s", name, section)
     rv = None
-    if section in self.__config and name in self.__config[section]:
-      rv = str_decode(self.__config[section][str_encode(name)])
+    if section in self.__config and str_encode(name,iskey=True) in self.__config[section]:
+      rv = str_decode(self.__config[section][str_encode(name,iskey=True)])
     else:
       rv = default
     self._logger.debug("Loaded name=%s, value=%s from %s", name, rv, section)
@@ -94,9 +97,9 @@ class CryptoStore(object):
     if not (section in self.__config):
       self.__config[section] = {}
     if value!=None:
-      self.__config[section][str_encode(name)] = str_encode(value)
+      self.__config[section][str_encode(name,iskey=True)] = str_encode(value)
     else:
-      self.__config[section].pop(str_encode(name),None)
+      self.__config[section].pop(str_encode(name,iskey=True),None)
     self.__file.seek(0,0)
     self.__config.write(self.__file)
     self.__file.flush()
