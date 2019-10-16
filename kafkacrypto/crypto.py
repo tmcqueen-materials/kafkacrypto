@@ -241,7 +241,7 @@ class KafkaCrypto(KafkaCryptoBase):
           k = None
           if root in self._cwaits.keys():
             # Gather all key indices we want.
-            k = msgpack.packb(self._cwaits[root].keys())
+            k = msgpack.packb(list(self._cwaits[root].keys()))
           v = self._cryptoexchange.signed_epk(root)
           if not (k is None) and not (v is None):
             self._subs_last[root] = time()
