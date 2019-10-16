@@ -83,6 +83,7 @@ class KafkaCryptoBase(object):
       self._cryptostore = config
     else:
       self._cryptostore = CryptoStore(nodeID, config)
+    nodeID = self._cryptostore.get_nodeID()
     self.__configure()
     if (cryptokey is None):
       cryptokey = self._cryptostore.load_value('cryptokey')

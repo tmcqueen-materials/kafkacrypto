@@ -50,6 +50,9 @@ class CryptoStore(object):
     if not (nodeID in self.__config):
       self.__config[nodeID] = {}
 
+  def get_nodeID(self):
+    return self._nodeID
+
   def load_section(self, section, defaults=True):
     rv = None
     if section is None:
