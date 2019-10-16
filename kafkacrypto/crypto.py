@@ -150,17 +150,20 @@ class KafkaCrypto(KafkaCryptoBase):
           self._logger.debug("Processing message: %s", msg)
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
-            # A new receiver: send all available keys
+            # A new receiver: send all requested keys
+            kreq = msgpack.unpackb(msg.key)
             if root in self._pgens.keys():
               ki = []
               s = []
               for ski,sk in self._pgens[root].items():
-                ki.append(ski)
-                s.append(sk['secret'])
+                if ski in kreq:
+                  ki.append(ski)
+                  s.append(sk['secret'])
               if len(ki) > 0:
-                k,v = self._cryptoexchange.encrypt_keys(ki, s, root, msgkey=msg.key, msgval=msg.value)
-                if (not (k is None)) or (not (v is None)):
-                  self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, msg.key)
+                k = msgpack.packb(ki)
+                v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
+                if not (v is None):
+                  self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
                   self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
                 else:
                   self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
@@ -169,7 +172,7 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
-            nks = self._cryptoexchange.decrypt_keys(root,msgkey=msg.key,msgval=msg.value)
+            nks = self._cryptoexchange.decrypt_keys(root,msgval=msg.value)
             if not (nks is None):
               for nki,nk in nks.items():
                 self._logger.info("Received new encryption key for root=%s, key index=%s, msgkey=%s", root, nki, msg.key)
@@ -235,8 +238,12 @@ class KafkaCrypto(KafkaCryptoBase):
       for root in self._subs_needed:
         self._logger.info("(Re)subscribing to root=%s", root)
         if not (root in self._subs_last.keys()) or self._subs_last[root]+self.CRYPTO_SUB_INTERVAL<time():
-          k,v = self._cryptoexchange.signed_epk(root)
-          if not (k is None) or not (v is None):
+          k = None
+          if root in self._cwaits.keys():
+            # Gather all key indices we want.
+            k = msgpack.packb(self._cwaits[root].keys())
+          v = self._cryptoexchange.signed_epk(root)
+          if not (k is None) and not (v is None):
             self._subs_last[root] = time()
             self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
             self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)

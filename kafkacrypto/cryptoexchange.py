@@ -45,7 +45,7 @@ class CryptoExchange(object):
       self.__denylist = []
     self.__update_spk_chain(chain)
 
-  def encrypt_keys(self, keyidxs, keys, topic, msgkey=None, msgval=None):
+  def encrypt_keys(self, keyidxs, keys, topic, msgval=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     #
@@ -86,10 +86,10 @@ class CryptoExchange(object):
       msg = msgpack.packb(tchain)
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
-      return (None, None)
-    return (msgkey, msg)
+      return None
+    return msg
 
-  def decrypt_keys(self, topic, msgkey=None, msgval=None):
+  def decrypt_keys(self, topic, msgval=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     #
@@ -153,11 +153,11 @@ class CryptoExchange(object):
       tchain = self.__spk_chain.copy()
       tchain.append(msg)
       msg = msgpack.packb(tchain)
-      return (self.__cryptokey.get_spk(), msg)
+      return msg
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       pass
-    return (None, None)
+    return None
 
   def add_allowlist(self, allow):
     try:
