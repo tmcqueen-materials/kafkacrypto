@@ -126,6 +126,7 @@ class KafkaCryptoBase(object):
     for k in self.DEFAULTS.keys():
       v = self.DEFAULTS[k]
       v2 = self._cryptostore.load_value(k)
+      self._logger.info("Loading config: %s,%s,%s",k,v,v2)
       setattr(self, k, v2 if v2!=None else v)
 
   def get_root(self,topic):
