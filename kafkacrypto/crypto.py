@@ -59,7 +59,9 @@ class KafkaCrypto(KafkaCryptoBase):
   #               own offsets.
   #               indexed by full topic.
   # _subs_needed: array of root topics for which new subscriptions are needed.
-  #   _subs_last: array of times subscriptions were requested (by root topic).
+  #   _subs_last: dict of subscriptions that were requested (by root topic).
+  #               Each one is itself an array with the timestamp, and an
+  #               array of key indices requested.
   #   _cur_pgens: dict of keyidx's for the current producer generator, indexed
   #               by root topic.
   #       _pgens: dict of production encryption key generators, indexed by root
@@ -183,8 +185,15 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._cgens[root][nki] = {}
                 self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
                 self._cgens[root][nki]['secret'] = nk
+                # now that we have this key index, clear from request lists
                 if root in self._cwaits.keys():
                   self._cwaits[root].pop(nki, None)
+              if root in self._subs_last:
+                eki = set(self._subs_last[root][1])
+                eki.difference_update(set(nks.keys()))
+                if len(eki) > 0:
+                  self._logger.warning("For root=%s, the keys %s were requested but not received.", root, eki)
+                self._subs_last.pop(root,None)
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
@@ -235,21 +244,28 @@ class KafkaCrypto(KafkaCryptoBase):
       # Third, deal with topics needing subscriptions
       self._lock.acquire()
       self._logger.debug("Process subscriptions.")
+      subs_needed_next = []
       for root in self._subs_needed:
-        self._logger.info("(Re)subscribing to root=%s", root)
-        if not (root in self._subs_last.keys()) or self._subs_last[root]+self.CRYPTO_SUB_INTERVAL<time():
-          k = None
-          if root in self._cwaits.keys():
-            # Gather all key indices we want.
-            k = msgpack.packb(list(self._cwaits[root].keys()))
-          v = self._cryptoexchange.signed_epk(root)
-          if not (k is None) and not (v is None):
-            self._subs_last[root] = time()
-            self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
-            self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
+        if root in self._cwaits.keys():
+          self._logger.info("Attempting (Re)subscribe to root=%s", root)
+          kis = list(self._cwaits[root].keys())
+          if len(kis) > 0:
+            if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
+              k = msgpack.packb(kis)
+              v = self._cryptoexchange.signed_epk(root)
+              if not (k is None) and not (v is None):
+                self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
+                self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
+                self._subs_last[root] = [time(),kis]
+              else:
+                self._logger.info("Failed to send new subscribe request for root=%s", root)
+                subs_needed_next.append(root)
+            else:
+              self._logger.info("Deferring (re)subscriptions for root=%s due to pending key request.", root)
+              subs_needed_next.append(root)
           else:
-            self._logger.info("Failed to send new subscribe request for root=%s", root)
-      self._subs_needed = []
+            self._logger.info("No new keys needed for root=%s", root)
+      self._subs_needed = subs_needed_next
       self._lock.release()
 
       # Flush producer
