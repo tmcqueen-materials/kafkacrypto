@@ -177,6 +177,9 @@ class CryptoExchange(object):
     except ValueError as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
+    except TypeError as	e:
+      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      return None
 
   def add_denylist(self, deny):
     try:
@@ -194,6 +197,9 @@ class CryptoExchange(object):
         self._logger.warning("Added key %s to denylist",pk[2].hex())
        	return pk[3]
     except ValueError as e:
+      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      return None
+    except TypeError as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
