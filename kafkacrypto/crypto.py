@@ -153,24 +153,27 @@ class KafkaCrypto(KafkaCryptoBase):
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
             # A new receiver: send all requested keys
-            kreq = msgpack.unpackb(msg.key)
-            if root in self._pgens.keys():
-              ki = []
-              s = []
-              for ski,sk in self._pgens[root].items():
-                if ski in kreq:
-                  ki.append(ski)
-                  s.append(sk['secret'])
-              if len(ki) > 0:
-                k = msgpack.packb(ki)
-                v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
-                if not (v is None):
-                  self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
-                  self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
+            try:
+              kreq = msgpack.unpackb(msg.key)
+              if root in self._pgens.keys():
+                ki = []
+                s = []
+                for ski,sk in self._pgens[root].items():
+                  if ski in kreq:
+                    ki.append(ski)
+                    s.append(sk['secret'])
+                if len(ki) > 0:
+                  k = msgpack.packb(ki)
+                  v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
+                  if not (v is None):
+                    self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
+                    self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
+                  else:
+                    self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
                 else:
-                  self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
-              else:
-                self._logger.info("No keys for root=%s to send to new receiver.", root)
+                  self._logger.info("No keys for root=%s to send to new receiver.", root)
+              except Exception as e:
+                self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
@@ -197,9 +200,11 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
-            newchain = self._cryptoexchange.replace_spk_chain(msg.value)
-            if not (newchain is None):
-              self._cryptostore.store_value('chain',newchain,section='crypto')
+            if msg.key == self._cryptokey.get_spk():
+              self._logger.debug("Key matches ours. Validating Chain.")
+              newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+              if not (newchain is None):
+                self._cryptostore.store_value('chain',newchain,section='crypto')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
             self._logger.info("Received new allowlist message: %s", msg)
             allow = self._cryptoexchange.add_allowlist(msg.value)

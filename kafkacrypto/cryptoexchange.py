@@ -174,10 +174,7 @@ class CryptoExchange(object):
           raise ValueError("Key already in allowlist!")
         self._logger.warning("Added key %s to allowlist",pk[2].hex())
         return pk[3]
-    except ValueError as e:
-      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
-      return None
-    except TypeError as	e:
+    except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
@@ -196,20 +193,14 @@ class CryptoExchange(object):
           raise ValueError("Key already in denylist!")
         self._logger.warning("Added key %s to denylist",pk[2].hex())
        	return pk[3]
-    except ValueError as e:
-      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
-      return None
-    except TypeError as e:
+    except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
 
   def replace_spk_chain(self, newchain):
-    try:
-      newchain = self.__update_spk_chain(newchain)
-      return newchain
-    except ValueError as e:
-      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
-      return None
+    # update_spk_chain captures any exceptions and returns None when they happen.
+    newchain = self.__update_spk_chain(newchain)
+    return newchain
 
   def __update_spk_chain(self, newchain):
     #
