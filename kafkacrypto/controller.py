@@ -83,7 +83,7 @@ class KafkaCryptoController(KafkaCryptoBase):
       if ((time()-self._last_subscribed_time) >= self.MGMT_SUBSCRIBE_INTERVAL):
         self._logger.debug("Initiating resubscribe...")
         trx = "(.*\\" + self.TOPIC_SUFFIX_SUBS.decode('utf-8') + "$)"
-        self._kc.subscribe(topics=[self.MGMT_TOPIC_CHAINS,self.MGMT_TOPIC_ALLOWLIST,self.MGMT_TOPIC_DENYLIST],pattern=trx)
+        self._kc.subscribe(topics=[self.MGMT_TOPIC_CHAINS.decode('utf-8'),self.MGMT_TOPIC_ALLOWLIST.decode('utf-8'),self.MGMT_TOPIC_DENYLIST.decode('utf-8')],pattern=trx)
         self._last_subscribed_time = time()
         self._logger.info("Resubscribed to topics.")
 

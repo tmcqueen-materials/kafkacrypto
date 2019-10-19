@@ -20,7 +20,7 @@ class KafkaConsumer(Consumer):
       if not (pattern.startswith('(') and pattern.endswith(')')):
         pattern = '(' + pattern + ')'
       for nt in topics:
-        ntr = nt.decode('utf-8')
+        ntr = nt
         for chr in ['.','^','$','*','+','?','{','}','[',']','\\','|','(',')']:
           ntr = ntr.replace(chr,'\\' + chr)
         pattern += '|(^' + ntr + '$)'
