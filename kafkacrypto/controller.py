@@ -83,7 +83,7 @@ class KafkaCryptoController(KafkaCryptoBase):
       if ((time()-self._last_subscribed_time) >= self.MGMT_SUBSCRIBE_INTERVAL):
         self._logger.debug("Initiating resubscribe...")
         trx = "(.*\\" + self.TOPIC_SUFFIX_SUBS.decode('utf-8') + "$)"
-        self._kc.subscribe(pattern=trx)
+        self._kc.subscribe(topics=[self.MGMT_TOPIC_CHAINS,self.MGMT_TOPIC_ALLOWLIST,self.MGMT_TOPIC_DENYLIST],pattern=trx)
         self._last_subscribed_time = time()
         self._logger.info("Resubscribed to topics.")
 
@@ -112,6 +112,27 @@ class KafkaCryptoController(KafkaCryptoBase):
               self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
             else:
               self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: ", topic, root, msg)
+          elif topic == self.MGMT_TOPIC_CHAINS:
+            # New candidate public key chain
+            self._logger.info("Received new chain message: %s", msg)
+            if msg.key == self._cryptokey.get_spk():
+              self._logger.debug("Key matches ours. Validating Chain.")
+              newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+              if not (newchain is None):
+                self._logger.info("New chain is superior, using it.")
+                self._cryptostore.store_value('chain',newchain,section='crypto')
+          elif topic == self.MGMT_TOPIC_ALLOWLIST:
+            self._logger.info("Received new allowlist message: %s", msg)
+            allow = self._cryptoexchange.add_allowlist(msg.value)
+            if not (allow is None):
+              c = pysodium.crypto_hash_sha256(allow)
+              self._cryptostore.store_value(c,allow,section='allowlist')
+          elif topic == self.MGMT_TOPIC_DENYLIST:
+            self._logger.info("Received new denylist message: %s", msg)
+            deny = self._cryptoexchange.add_denylist(msg.value)
+            if not (deny is None):
+              c = pysodium.crypto_hash_sha256(deny)
+              self._cryptostore.store_value(c,deny,section='denylist')
           else:
             # unknown object
             self._logger.warning("Unknown topic type in message: %s", msg)

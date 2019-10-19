@@ -9,6 +9,10 @@ def key_in_list(wanted, choices):
   # which has the format of a chain entry (see below). This helper
   # function iterates each choice, seeing if the key wanted
   # is present, and returns the match (if any)
+  # Right now this has O(n) running time in the length of choices,
+  # a future improvement is to make the average running time
+  # much faster by building a set of the pk's before calling
+  # this function
   if wanted is None or choices is None:
     return None
   for c in choices:
