@@ -172,8 +172,8 @@ class KafkaCrypto(KafkaCryptoBase):
                     self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
                 else:
                   self._logger.info("No keys for root=%s to send to new receiver.", root)
-              except Exception as e:
-                self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+            except Exception as e:
+              self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
