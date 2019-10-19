@@ -13,16 +13,17 @@ from kafkacrypto.utils import PasswordProvisioner, str_encode
 # Global configuration
 #
 
-_lifetime = 31622400 # lifetime (1 year)
-_ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
+_lifetime = 6048000 # lifetime (1 week)
+_lifetime_controller = 31622400 # controller lifetime (1 year)
+_ss0_escrow = unhexlify(b'escrow-key-here')
 _rot = unhexlify(b'79f5303a2e1c13fb5f5c3de392004694ae1d556c09dc0003b078136f805972a1')
 _msgrot = msgpack.packb([0,b'\x90',_rot])
 _chainrot = _rot
 _msgchainrot = _msgrot
-_signedprov = { 'producer': unhexlify(b'signed key here'),
-                'consumer': unhexlify(b'signed key here'),
-                'prodcon': unhexlify(b'signed key here'),
-                }
+_signedprov = {  'producer' : unhexlify(b'chain-here'),
+                 'consumer' : unhexlify(b'chain-here'),
+                  'prodcon' : unhexlify(b'chain-here'),
+              }
 _keys =     {    'producer': 'producer',
                  'consumer': 'consumer',
                  'prodcon': 'prodcon',
@@ -43,6 +44,7 @@ _usages = {      'producer': [b'key-encrypt'],
                  'prodcon-limited': [b'key-encrypt',b'key-encrypt-subscribe'],
                  'consumer-limited': [b'key-encrypt-subscribe'],
                  'controller': [b'key-encrypt-request'],
+                 'chain-server': [b'key-encrypt',b'key-encrypt-subscribe'],
                  }
 
 print('Beginning provisioning process. This should be run on the device being provisioned.')
@@ -54,8 +56,9 @@ print('1. Controller')
 print('2. Producer')
 print('3. Consumer')
 print('4. Consumer and Producer')
+print('5. Chain Server')
 choice = 0
-while choice<1 or choice>4:
+while choice<1 or choice>5:
   try:
     choice = int(input('? '))
   except ValueError:
@@ -80,6 +83,7 @@ if (choice == 3 or choice == 4):
     limited = True
 
 if (choice == 1):
+  _lifetime = _lifetime_controller
   key = 'controller'
 elif (choice == 2):
   key = 'producer'
@@ -91,24 +95,29 @@ elif (choice == 4 and limited):
   key =	'prodcon-limited'
 elif (choice ==	4 and not limited):
   key =	'prodcon'
+elif (choice == 5):
+  _lifetime = _lifetime_controller
+  key = 'chain-server'
 else:
   assert False,'Invalid combination of choices!'
 
-password = ''
-while len(password) < 12:
-  password = getpass('Provisioning Password (12+ chars): ')
-prov = PasswordProvisioner(password, _rot)
+if choice<5:
+  # use an existing provisioner
+  password = ''
+  while len(password) < 12:
+    password = getpass('Provisioning Password (12+ chars): ')
+  prov = PasswordProvisioner(password, _rot)
 
-# Check we have appropriate chains
-if (choice == 1):
-  # Controllers must be signed by ROT
-  _msgchkrot = _msgrot
-else:
-  # Everyone else by the Chain ROT (may = ROT)
-  _msgchkrot = _msgchainrot
-assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
-pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])
-assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
+  # Check we have appropriate chains
+  if (choice == 1):
+    # Controllers must be signed by ROT
+    _msgchkrot = _msgrot
+  else:
+    # Everyone else by the Chain ROT (may = ROT)
+    _msgchkrot = _msgchainrot
+  assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
+  pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])
+  assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
 
 topics = None
 while topics is None:
@@ -121,10 +130,16 @@ while topics is None:
     else:
       topics = [b'^.*$']
 
-pathlen = ''
-pathlen = input('Enter a maximum pathlength (-1 for no limit; default 1):')
-if len(pathlen)<1:
+if choice<5:
   pathlen=1
+else:
+  pathlen=2
+pathlen = input('Enter a maximum pathlength (-1 for no limit; default ' + str(pathlen) + '):')
+if len(pathlen)<1:
+  if choice<5:
+    pathlen=1
+  else:
+    pathlen=2
 else:
   pathlen=int(pathlen)
 
@@ -144,16 +159,17 @@ while len(ans) < 1 or (ans[0].lower() != 'n' and ans[0].lower() != 'y'):
 assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 
 # Generate KDF seed first
-with open(nodeID + ".seed", "wb") as f:
-  rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-  f.write(msgpack.packb([0,rb]))
-if len(_ss0_escrow) > 0:
-  print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
-  print('Escrow public key:', hexlify(_ss0_escrow))
-  print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)))
-else:
-  print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
-  print(nodeID + ':', hexlify(rb))
+if choice<5:
+  with open(nodeID + ".seed", "wb") as f:
+    rb = pysodium.randombytes(Ratchet.SECRETSIZE)
+    f.write(msgpack.packb([0,rb]))
+  if len(_ss0_escrow) > 0:
+    print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
+    print('Escrow public key:', hexlify(_ss0_escrow))
+    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)))
+  else:
+    print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
+    print(nodeID + ':', hexlify(rb))
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 pk,sk = pysodium.crypto_sign_keypair()
@@ -164,8 +180,16 @@ if pathlen != -1:
   poison.append([b'pathlen',pathlen])
 poison = msgpack.packb(poison)
 msg = [time()+_lifetime, poison, pk]
-msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
-chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
+if choice<5:
+  msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
+  chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
+else:
+  print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg)))
+  msg = unhexlify(input('ROT Signed Value (hex):'))
+  chain = msgpack.packb([msg])
+  pk2 = process_chain(chain,None,None,allowlist=[_msgrot])
+  assert len(pk2) >= 3, "Malformed ROT Signed Value"
+  
 print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
 with open(nodeID + ".crypto", "wb") as f:
   f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
@@ -175,25 +199,26 @@ cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
 cfg['DEFAULT'] = {}
 cfg['DEFAULT']['node_id'] = str_encode(nodeID)
 cfg[str_encode(nodeID + "-kafka")] = {}
-cfg[str_encode(nodeID + "-kafka-crypto")] = {}
 cfg[str_encode(nodeID + "-kafka-consumer")] = {}
-cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
 cfg[str_encode(nodeID + "-kafka-producer")] = {}
-cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
-cfg[str_encode(nodeID + "-crypto")] = {}
-cfg[str_encode(nodeID + "-crypto")]['maxage'] = str_encode(_lifetime)
-cfg[str_encode(nodeID + "-crypto")]['chain'] = str_encode(chain)
-cfg[str_encode(nodeID + "-allowlist")] = {}
-cfg[str_encode(nodeID + "-allowlist")]['rot'] = str_encode(_msgrot)
-if _msgchkrot != _msgrot:
-  cfg[str_encode(nodeID + "-allowlist")]['chainrot'] = str_encode(_msgchkrot)
-# If controller, list of provisioners
-if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
-  cfg[str_encode(nodeID + "-allowlist")]['provisioners0'] = str_encode(_msgchainrot)
 cfg[str_encode(nodeID)] = {}
 cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
-cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
-DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name components, used to find root name and subs/keys
+cfg[str_encode(nodeID + "-allowlist")] = {}
+cfg[str_encode(nodeID + "-allowlist")]['rot'] = str_encode(_msgrot)
+cfg[str_encode(nodeID + "-crypto")] = {}
+cfg[str_encode(nodeID + "-crypto")]['chain'] = str_encode(chain)
+if choice<5:
+  cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
+  cfg[str_encode(nodeID + "-kafka-crypto")] = {}
+  cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
+  cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
+  cfg[str_encode(nodeID + "-crypto")]['maxage'] = str_encode(_lifetime)
+  if _msgchkrot != _msgrot:
+    cfg[str_encode(nodeID + "-allowlist")]['chainrot'] = str_encode(_msgchkrot)
+  # If controller, list of provisioners
+  if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
+    cfg[str_encode(nodeID + "-allowlist")]['provisioners0'] = str_encode(_msgchainrot)
+  DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name components, used to find root name and subs/keys
                'TOPIC_SUFFIX_REQS': b'.reqs',  # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': b'.keys',
                'TOPIC_SUFFIX_SUBS': b'.subs', # change to be same as REQS if this is a controller-less setup
@@ -209,12 +234,11 @@ DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name component
                'MGMT_LONG_KEYINDEX': True,
                'DESER_INITIAL_WAIT_INTERVALS': 10,
              }
-
-if ((choice == 2 or choice == 4) and sole == True):
-  DEFAULTS['MGMT_LONG_KEYINDEX'] = False
-
-for k in DEFAULTS:
-  cfg[str_encode(nodeID)][str_encode(k)] = str_encode(DEFAULTS[k])
-
+  if ((choice == 2 or choice == 4) and sole == True):
+    DEFAULTS['MGMT_LONG_KEYINDEX'] = False
+  for k in DEFAULTS:
+    cfg[str_encode(nodeID)][str_encode(k)] = str_encode(DEFAULTS[k])
+elif choice == 5:
+  cfg[str_encode(nodeID + "-chainkeys")] = {}
 with open(nodeID + ".config", "w") as f:
   cfg.write(f)

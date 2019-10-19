@@ -204,6 +204,7 @@ class KafkaCrypto(KafkaCryptoBase):
               self._logger.debug("Key matches ours. Validating Chain.")
               newchain = self._cryptoexchange.replace_spk_chain(msg.value)
               if not (newchain is None):
+                self._logger.info("New chain is superior, using it.")
                 self._cryptostore.store_value('chain',newchain,section='crypto')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
             self._logger.info("Received new allowlist message: %s", msg)
