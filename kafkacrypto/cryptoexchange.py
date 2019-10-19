@@ -205,7 +205,7 @@ class CryptoExchange(object):
 
   def replace_spk_chain(self, newchain):
     try:
-      self.__update_spk_chain(newchain)
+      newchain = self.__update_spk_chain(newchain)
       return newchain
     except ValueError as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
