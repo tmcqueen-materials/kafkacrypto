@@ -15,5 +15,6 @@ from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.crypto import KafkaCrypto
 from kafkacrypto.controller import KafkaCryptoController
 from kafkacrypto.kafkacryptostore import KafkaCryptoStore
-__all__.extend([ 'KafkaCryptoMessage', 'KafkaCrypto', 'KafkaCryptoStore', 'KafkaCryptoController'])
+from kafkacrypto.chainserver import KafkaCryptoChainServer
+__all__.extend([ 'KafkaCryptoMessage', 'KafkaCrypto', 'KafkaCryptoStore', 'KafkaCryptoController', 'KafkaCryptoChainServer'])
 

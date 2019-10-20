@@ -170,5 +170,17 @@ controller._mgmt_thread.join()
 ```
 The configuration parameters inside the provision script should be adjusted so that the "subscribe" and "key request" suffixes are distinct (see comment in `simple-provision.py`, or use `provision.py` instead). If automatic topic creation is disabled, then the topic `root.subs` must also be created. It is safe to enable regular log compaction on this topic.
 
+Another common desire is to use very short chain lifetimes. Chains can be refreshed automatically and pushed to users. The requisite ChainServer can be setup as:
+```python
+#!/usr/bin/python3
+from kafkacrypto import KafkaCryptoChainServer
+
+nodeId = 'chain-server-name'
+
+chainserver = KafkaCryptoChainServer(nodeId)
+chainserver._mgmt_thread.join()
+```
+The sample provision script can appropriately setup keys for the ChainServer as well.
+
 ## Design, Specification, and Security Analysis
 kafkacrypto is already in limited production use, and should be stable enough for broad adoption. However, a detailed security analysis of the kafkacrypto framework is still in progress, and use of this code should be considered experimental.

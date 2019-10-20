@@ -26,12 +26,17 @@ class KafkaCryptoController(KafkaCryptoBase):
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
-         config (str,file): Filename or File IO object in which
+     config (str,file,obj): Filename or File IO object in which
                             configuration data is stored. Set to None
                             to load from the default location based
                             on nodeID. Must be seekable, with read/
                             write permission, honor sync requests,
                             and not be written by any other program.
+                            Can alternatively be an object implementing
+                            the necessary functions to be a crypto
+                            config store (load_section, load_value,
+                            store_value, load_opaque_value, store_opaque_value,
+                            set_cryptokey)
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
                             (get/sign_spk,get/use_epk,
