@@ -1,4 +1,5 @@
 from time import time
+from threading import lock
 from configparser import ConfigParser
 import traceback
 import pysodium
@@ -50,77 +51,88 @@ class CryptoStore(object):
     if not (nodeID in self.__config):
       self.__config[nodeID] = {}
 
+    self.__lock = Lock()
+    self.__keylock = Lock()
+
   def get_nodeID(self):
+    # read-only, no lock needed
     return self._nodeID
 
   def load_section(self, section, defaults=True):
-    rv = None
-    if section is None:
-      section = self._nodeID
-    else:
-      section = self._nodeID + "-" + section
-    if section in self.__config:
-      self._logger.debug("Attempting to load section %s", section)
-      rv = {}
-      for key in self.__config[section]:
-        rv[str_decode(key,iskey=True)] = str_decode(self.__config[section][key])
-    elif defaults:
-      self._logger.debug("Loading defaults for section %s", section)
-      rv = {}
-      for key in self.__config['DEFAULT']:
-        rv[str_decode(key,iskey=True)] = str_decode(self.__config['DEFAULT'][key])
-    if not defaults and rv!=None:
-      for key in self.__config['DEFAULT']:
-        if str_decode(key,iskey=True) in rv and str_decode(self.__config['DEFAULT'][key]) == rv[str_decode(key,iskey=True)]:
-          rv.pop(str_decode(key,iskey=True), None)
+    # need lock
+    with self.__lock:
+      rv = None
+      if section is None:
+        section = self._nodeID
+      else:
+        section = self._nodeID + "-" + section
+      if section in self.__config:
+        self._logger.debug("Attempting to load section %s", section)
+        rv = {}
+        for key in self.__config[section]:
+          rv[str_decode(key,iskey=True)] = str_decode(self.__config[section][key])
+      elif defaults:
+        self._logger.debug("Loading defaults for section %s", section)
+        rv = {}
+        for key in self.__config['DEFAULT']:
+          rv[str_decode(key,iskey=True)] = str_decode(self.__config['DEFAULT'][key])
+      if not defaults and rv!=None:
+        for key in self.__config['DEFAULT']:
+          if str_decode(key,iskey=True) in rv and str_decode(self.__config['DEFAULT'][key]) == rv[str_decode(key,iskey=True)]:
+            rv.pop(str_decode(key,iskey=True), None)
     return rv
 
   def load_value(self, name, section=None, default=None):
-    if section is None:
-      section =	self._nodeID
-    else:
-      section =	self._nodeID + "-" + section
-    section = str_encode(section)
-    self._logger.debug("Attempting to load value for %s from %s", name, section)
-    rv = None
-    if section in self.__config and str_encode(name,iskey=True) in self.__config[section]:
-      rv = str_decode(self.__config[section][str_encode(name,iskey=True)])
-    else:
-      rv = default
-    self._logger.debug("Loaded name=%s, value=%s from %s", name, rv, section)
+    with self.__lock:
+      if section is None:
+        section = self._nodeID
+      else:
+        section = self._nodeID + "-" + section
+      section = str_encode(section)
+      self._logger.debug("Attempting to load value for %s from %s", name, section)
+      rv = None
+      if section in self.__config and str_encode(name,iskey=True) in self.__config[section]:
+        rv = str_decode(self.__config[section][str_encode(name,iskey=True)])
+      else:
+        rv = default
+      self._logger.debug("Loaded name=%s, value=%s from %s", name, rv, section)
     return rv
 
   def store_value(self, name, value, section=None):
-    if section is None:
-      section =	self._nodeID
-    else:
-      section =	self._nodeID + "-" + section
-    section = str_encode(section)
-    self._logger.debug("Storing name=%s, value=%s in %s", name, value, section)
-    if not (section in self.__config):
-      self.__config[section] = {}
-    if value!=None:
-      self.__config[section][str_encode(name,iskey=True)] = str_encode(value)
-    else:
-      self.__config[section].pop(str_encode(name,iskey=True),None)
-    self.__file.seek(0,0)
-    self.__config.write(self.__file)
-    self.__file.flush()
-    self.__file.truncate()
-    self.__file.flush()
-    self._logger.debug("Successfully stored.")
+    with self.__lock:
+      if section is None:
+        section = self._nodeID
+      else:
+        section = self._nodeID + "-" + section
+      section = str_encode(section)
+      self._logger.debug("Storing name=%s, value=%s in %s", name, value, section)
+      if not (section in self.__config):
+        self.__config[section] = {}
+      if value!=None:
+        self.__config[section][str_encode(name,iskey=True)] = str_encode(value)
+      else:
+        self.__config[section].pop(str_encode(name,iskey=True),None)
+      self.__file.seek(0,0)
+      self.__config.write(self.__file)
+      self.__file.flush()
+      self.__file.truncate()
+      self.__file.flush()
+      self._logger.debug("Successfully stored.")
 
   def set_cryptokey(self, cryptokey):
-    self.__cryptokey = cryptokey
+    with self.__keylock:
+      self.__cryptokey = cryptokey
 
   def load_opaque_value(self, name, section=None, default=None):
-    rv = self.load_value(name,section,default)
-    if rv!= None:
-      return self.__cryptokey.unwrap_opaque(rv)
-    else:
-      return None
+    with self.__keylock:
+      rv = self.load_value(name,section,default)
+      if rv!= None:
+        return self.__cryptokey.unwrap_opaque(rv)
+      else:
+        return None
 
   def store_opaque_value(self, name, value, section=None):
-    value = self.__cryptokey.wrap_opaque(value)
-    self.store_value(name, value, section)
+    with self.__keylock:
+      value = self.__cryptokey.wrap_opaque(value)
+      self.store_value(name, value, section)
 

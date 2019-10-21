@@ -1,3 +1,4 @@
+from threading import Lock
 import pysodium
 import logging
 import msgpack
@@ -38,6 +39,7 @@ class CryptoKey(object):
         data = data[:-1]
     if len(data) != datalen:
       self._logger.warning("Cryptokey file had extraneous bytes at end, attempting load anyways.")
+    self.__eklock = Lock()
     self.__esk = {}
     self.__epk = {}
     self.__ssk = contents[0]
@@ -58,21 +60,23 @@ class CryptoKey(object):
       topic = bytes(topic, 'utf-8')
     if (isinstance(usage,(str))):
       usage = bytes(usage, 'utf-8')
-    self.__generate_esk(topic, usage)
-    return self.__epk[topic][usage]
+    with self.__eklock:
+      self.__generate_esk(topic, usage)
+      return self.__epk[topic][usage]
 
   def use_epk(self, topic, usage, pks, clear=True):
     rv = []
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     if (isinstance(usage,(str))):
+    with self.__eklock:
       usage = bytes(usage, 'utf-8')
-    if not topic in self.__esk or not usage in self.__esk[topic]:
-      return rv
-    for pk in pks:
-      rv.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic][usage],pk))
-    if clear:
-      self.__remove_esk(topic, usage)
+      if not topic in self.__esk or not usage in self.__esk[topic]:
+        return rv
+      for pk in pks:
+        rv.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic][usage],pk))
+      if clear:
+        self.__remove_esk(topic, usage)
     return rv
 
   def wrap_opaque(self, crypto_opaque):
@@ -87,6 +91,7 @@ class CryptoKey(object):
 
   def __generate_esk(self, topic, usage):
     # ephemeral keys are use once only, so always ok to overwrite
+    # caller must hold self.__eklock prior to calling
     if not topic in self.__esk or not topic in self.__epk:
       self.__esk[topic] = {}
       self.__epk[topic] = {}
@@ -94,5 +99,6 @@ class CryptoKey(object):
     self.__epk[topic][usage] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic][usage])
 
   def __remove_esk(self, topic, usage):
+    # caller must hold self.__eklock prior to calling
     self.__esk[topic].pop(usage)
     self.__epk[topic].pop(usage)

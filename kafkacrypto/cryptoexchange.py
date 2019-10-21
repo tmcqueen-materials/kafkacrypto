@@ -1,3 +1,4 @@
+from threading import Lock
 from time import time
 import traceback
 import pysodium
@@ -35,6 +36,8 @@ class CryptoExchange(object):
     self.__randombytes = randombytes if randombytes>=32 else 32
     self.__cryptokey = cryptokey
     self.__spk_chain = []
+    self.__spk_chain_lock = Lock()
+    self.__allowdenylist_lock = Lock()
     if not (allowlist is None):
       self.__allowlist = allowlist
     else:
@@ -57,7 +60,8 @@ class CryptoExchange(object):
     # Currently items after this are ignored, and reserved for future use.
     #
     try:
-      pk = process_chain(msgval,topic,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+      with self.__allowdenylist_lock:
+        pk = process_chain(msgval,topic,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       epk = self.__cryptokey.get_epk(topic, b'encrypt_keys')
       pks = [pk[2]]
@@ -81,7 +85,8 @@ class CryptoExchange(object):
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
       # and finally put as last member of a msgpacked array chaining to ROT
-      tchain = self.__spk_chain.copy()
+      with self.__spk_chain_lock:
+        tchain = self.__spk_chain.copy()
       tchain.append(msg)
       msg = msgpack.packb(tchain)
     except Exception as e:
@@ -101,7 +106,8 @@ class CryptoExchange(object):
     # secret, followed by the actual key message.
     #
     try:
-      pk = process_chain(msgval,topic,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
+      with self.__allowdenylist_lock:
+        pk = process_chain(msgval,topic,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 5):
         raise ValueError
       random0 = pk[3][0]
@@ -150,7 +156,8 @@ class CryptoExchange(object):
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
       # and finally put as last member of a msgpacked array chaining to ROT
-      tchain = self.__spk_chain.copy()
+      with self.__spk_chain_lock:
+        tchain = self.__spk_chain.copy()
       tchain.append(msg)
       msg = msgpack.packb(tchain)
       return msg
@@ -160,6 +167,7 @@ class CryptoExchange(object):
     return None
 
   def add_allowlist(self, allow):
+    self.__allowdenylist_lock.acquire()
     try:
       pk = process_chain(allow,None,b'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
@@ -177,8 +185,11 @@ class CryptoExchange(object):
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
+    finally:
+      self.__allowdenylist_lock.release()
 
   def add_denylist(self, deny):
+    self.__allowdenylist_lock.acquire()
     try:
       pk = process_chain(deny,None,b'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
@@ -196,6 +207,8 @@ class CryptoExchange(object):
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
+    finally:
+      self.__allowdenylist_lock.release()
 
   def replace_spk_chain(self, newchain):
     # update_spk_chain captures any exceptions and returns None when they happen.
@@ -208,20 +221,22 @@ class CryptoExchange(object):
     # first must check it is a valid chain ending in our signing public key.
     #
     try:
-      pk = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)
+      with self.__allowdenylist_lock:
+        pk = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 3 or pk[2] != self.__cryptokey.get_spk()):
         raise ValueError("New chain does not match current signing public key,")
       # If we get here, it is a valid chain. So now we need
       # to see if it is "superior" than our current chain.
       # This means a larger minimum max_age.
-      min_max_age = 0
-      for cpk in self.__spk_chain:
-        if (min_max_age == 0 or cpk[0]<min_max_age):
-          min_max_age = cpk[0]
-      if (pk[0] < min_max_age):
-        raise ValueError("New chain has shorter expiry time than current chain.")
-      self.__spk_chain = msgpack.unpackb(newchain)
-      return newchain
+      with self.__spk_chain_lock:
+        min_max_age = 0
+        for cpk in self.__spk_chain:
+          if (min_max_age == 0 or cpk[0]<min_max_age):
+            min_max_age = cpk[0]
+        if (pk[0] < min_max_age):
+          raise ValueError("New chain has shorter expiry time than current chain.")
+        self.__spk_chain = msgpack.unpackb(newchain)
+        return newchain
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return None
