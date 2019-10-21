@@ -1,5 +1,5 @@
 from time import time
-from threading import lock
+from threading import Lock
 from configparser import ConfigParser
 import traceback
 import pysodium

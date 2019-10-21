@@ -69,8 +69,8 @@ class CryptoKey(object):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
     if (isinstance(usage,(str))):
-    with self.__eklock:
       usage = bytes(usage, 'utf-8')
+    with self.__eklock:
       if not topic in self.__esk or not usage in self.__esk[topic]:
         return rv
       for pk in pks:
