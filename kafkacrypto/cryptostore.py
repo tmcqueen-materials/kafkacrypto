@@ -18,7 +18,8 @@ class CryptoStore(object):
                            Must be seekable, with read/write permission,
                            honor sync requests, and only be written by one
                            instance of this class at a time. If a File IO object,
-                           a single write call should be atomic (all or nothing).
+                           writes and truncates should not be persisted until
+                           flush is called (to form a single large atomic op).
   """
   #
   # Per instance, defined in init
@@ -30,7 +31,7 @@ class CryptoStore(object):
   def __init__(self, nodeID=None, file=None):
     self._logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
-      file = atomic_open(file)
+      file = atomic_open(file,'r+')
     self.__cryptokey = None
     self.__file = file
     self.__file.seek(0,0)
@@ -122,11 +123,8 @@ class CryptoStore(object):
           self.__config[section].pop(str_encode(name,iskey=True),None)
       self.__file.seek(0,0)
       self.__config.write(self.__file)
+      self.__file.truncate()
       self.__file.flush()
-      # No truncate needed when using atomic_open since it rewrites the file from
-      # scratch, atomically.
-      # self.__file.truncate()
-      # self.__file.flush()
       self._logger.debug("Successfully stored.")
 
   def set_cryptokey(self, cryptokey):

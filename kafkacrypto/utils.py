@@ -1,7 +1,7 @@
 import pysodium
 import msgpack
 from os import replace, remove
-from shutil import copymode
+from shutil import copy, copymode
 from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
@@ -42,44 +42,71 @@ def str_encode(value, iskey=False):
       value = value.lower()
   return value
 
-class ShadowFile(object):
-  """The ShadowFile class instantiates a very simplistic file with atomic semantics
-     for write and flush commands (nothing is written until flush is issued, then all
-     or nothing is written). It IS NOT thread safe.
+class AtomicFile(object):
+  """The AtomicFile class instantiates a very simplistic file with atomic semantics.
+     Nothing is written until flush is issued, then all or nothing is written).
+     It IS NOT thread safe.
   """
-  def __init__(self, file):
+  def __init__(self, file, binary=False, tmpfile=None):
+    if tmpfile==None:
+      tmpfile = file + ".tmp"
     self.__file = file
-    self.__readfile = open(file, "r")
-    self.__writefile = open(file + ".tmp", "w")
+    self.__binary = binary
+    if not binary:
+      self.__fm = "r"
+      self.__wfm = "r+"
+    else:
+      self.__fm = "rb"
+      self.__wfm = "rb+"
+    self.__tmpfile = tmpfile
+    self.__readfile = open(self.__file, self.__fm)
+    self.__writefile = None
 
   def seek(self, *args, **kwargs):
-    self.__writefile.seek(*args, **kwargs)
+    if self.__writefile != None:
+      self.__writefile.seek(*args, **kwargs)
     return self.__readfile.seek(*args, **kwargs)
 
   def write(self, *args, **kwargs):
+    if self.__writefile == None:
+      copy(self.__file, self.__tmpfile)
+      self.__writefile = open(self.__tmpfile, self.__wfm)
+      self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.write(*args, **kwargs)
 
-  def writelines(self, *args, **kwargs):
-    return self.__writefile.write(*args, **kwargs)
+  def writelines(self, lines):
+    if self.__binary:
+      combined = b''.join(lines)
+    else:
+      combined = ''.join(lines)
+    return self.write(lines)
 
   def truncate(self, **kwargs):
+    if self.__writefile == None:
+      copy(self.__file,	self.__tmpfile)
+      self.__writefile = open(self.__tmpfile, self.__wfm)
+      self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.truncate(**kwargs)
 
   def flush(self):
-    # the atomic operation
-    rv = self.__writefile.flush()
-    self.__readfile.close()
-    self.__writefile.close()
-    copymode(self.__file, self.__file + ".tmp")
-    replace(self.__file + ".tmp", self.__file) # atomic on python 3.3+
-    self.__readfile = open(self.__file, "r")
-    self.__writefile = open(self.__file + ".tmp", "w")
-    return rv
+    if self.__writefile != None:
+      # the atomic operation
+      rv = self.__writefile.flush()
+      pos = self.__writefile.tell()
+      self.__readfile.close()
+      self.__writefile.close()
+      copymode(self.__file, self.__tmpfile)
+      replace(self.__tmpfile, self.__file) # atomic on python 3.3+
+      self.__readfile = open(self.__file, self.__fm)
+      self.__readfile.seek(pos,0)
+      self.__writefile = None
+      return rv
+    else:
+      remove(self.__tmpfile)
+      return None
 
   def close(self):
     self.flush()
-    self.__writefile.close()
-    remove(self.__file + ".tmp")
     return self.__readfile.close()
 
   def __iter__(self):
@@ -89,13 +116,16 @@ class ShadowFile(object):
     return self.__readfile.__next__()
 
   def __getattr__(self, name):
-    def method(*args, **kwargs):
-      return self.__readfile.getattr(name)(*args, **kwargs)
-    
-def atomic_open(file, **kwargs):
-  if len(kwargs) > 0:
+    return getattr(self.__readfile,name)
+
+def atomic_open(file, mode='r', **kwargs):
+  mode = kwargs.pop('mode', mode)
+  if len(kwargs) > 0 or (mode.lower() != 'r+' and mode.lower() != 'rb+'):
     raise ValueError("Not Supported!")
-  return ShadowFile(file)
+  binary = False
+  if mode.lower().find('b') != -1:
+    binary = True
+  return AtomicFile(file, binary=binary)
 
 class PasswordProvisioner(object):
   """The PasswordProvisioner class instantiates three provisioner keys, and uses them
