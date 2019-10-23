@@ -9,7 +9,8 @@ class Ratchet(KeyGenerator):
   Keyword Arguments:
           file (str,file): Filename or File IO object for storing ratchet info.
                            Must be seekable, with read/write permission, and
-                           honor sync requests.
+                           honor sync requests. If it is a File IO object,
+       	                   a single write call should be atomic (all or nothing).
   """
   #
   # Ratchet global configuration. These define the parameters
@@ -36,6 +37,14 @@ class Ratchet(KeyGenerator):
     self.rekey(contents[1])
     self.__file.seek(0,0)
     newkey,nonce = self.generate(ctx=self.__ctx,keysize=self.SECRETSIZE,noncesize=0)
+    # In general there is no guarantee that write and then flush will atomically overwrite the
+    # previous values. However, in this specific case, this is the best possible approach:
+    # the total size of data being written is << 512 bytes (a single sector), meaning that
+    # on any block-based device either the new data will be written, or it won't be, with no
+    # intermediate possibilities, and thus is in practice atomic. If the provided file was
+    # a file I/O object, it should explicitly have atomic writes.
+    # We do not use atomic write approaches based on renames due to the possibility of leaving
+    # secret key material on disk if temporary files are not appropriately cleaned up.
     self.__file.write(msgpack.packb([self.__keyidx+1,newkey]))
     self.__file.flush()
     self.__file.seek(0,0)

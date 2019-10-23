@@ -6,7 +6,7 @@ import pysodium
 import msgpack
 import logging
 from kafkacrypto.exceptions import KafkaCryptoStoreError
-from kafkacrypto.utils import str_encode, str_decode
+from kafkacrypto.utils import str_encode, str_decode, atomic_open
 
 class CryptoStore(object):
   """Class utilizing file-backed location for storage of non-secret crypto
@@ -17,7 +17,8 @@ class CryptoStore(object):
           file (str,file): Filename or File IO object for storing crypto info.
                            Must be seekable, with read/write permission,
                            honor sync requests, and only be written by one
-                           instance of this class at a time.
+                           instance of this class at a time. If a File IO object,
+                           a single write call should be atomic (all or nothing).
   """
   #
   # Per instance, defined in init
@@ -29,7 +30,7 @@ class CryptoStore(object):
   def __init__(self, nodeID=None, file=None):
     self._logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
-      file = open(file, 'r+')
+      file = atomic_open(file)
     self.__cryptokey = None
     self.__file = file
     self.__file.seek(0,0)
@@ -99,24 +100,33 @@ class CryptoStore(object):
     return rv
 
   def store_value(self, name, value, section=None):
+    self.store_values([[name,value]], section=section)
+
+  def store_values(self, namevals, section=None):
+    if len(namevals) < 1:
+      self._logger.debug("store_values called with no parameters.")
+      return
+    if section is None:
+      section = self._nodeID
+    else:
+      section = self._nodeID + "-" + section
+    section = str_encode(section)
     with self.__lock:
-      if section is None:
-        section = self._nodeID
-      else:
-        section = self._nodeID + "-" + section
-      section = str_encode(section)
-      self._logger.debug("Storing name=%s, value=%s in %s", name, value, section)
       if not (section in self.__config):
         self.__config[section] = {}
-      if value!=None:
-        self.__config[section][str_encode(name,iskey=True)] = str_encode(value)
-      else:
-        self.__config[section].pop(str_encode(name,iskey=True),None)
+      for [name, value] in namevals:
+        self._logger.debug("Storing name=%s, value=%s in %s", name, value, section)
+        if value!=None:
+          self.__config[section][str_encode(name,iskey=True)] = str_encode(value)
+        else:
+          self.__config[section].pop(str_encode(name,iskey=True),None)
       self.__file.seek(0,0)
       self.__config.write(self.__file)
       self.__file.flush()
-      self.__file.truncate()
-      self.__file.flush()
+      # No truncate needed when using atomic_open since it rewrites the file from
+      # scratch, atomically.
+      # self.__file.truncate()
+      # self.__file.flush()
       self._logger.debug("Successfully stored.")
 
   def set_cryptokey(self, cryptokey):

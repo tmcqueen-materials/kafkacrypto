@@ -1,5 +1,7 @@
 import pysodium
 import msgpack
+from os import replace, remove
+from shutil import copymode
 from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
@@ -39,6 +41,61 @@ def str_encode(value, iskey=False):
       # case insensitive keys
       value = value.lower()
   return value
+
+class ShadowFile(object):
+  """The ShadowFile class instantiates a very simplistic file with atomic semantics
+     for write and flush commands (nothing is written until flush is issued, then all
+     or nothing is written). It IS NOT thread safe.
+  """
+  def __init__(self, file):
+    self.__file = file
+    self.__readfile = open(file, "r")
+    self.__writefile = open(file + ".tmp", "w")
+
+  def seek(self, *args, **kwargs):
+    self.__writefile.seek(*args, **kwargs)
+    return self.__readfile.seek(*args, **kwargs)
+
+  def write(self, *args, **kwargs):
+    return self.__writefile.write(*args, **kwargs)
+
+  def writelines(self, *args, **kwargs):
+    return self.__writefile.write(*args, **kwargs)
+
+  def truncate(self, **kwargs):
+    return self.__writefile.truncate(**kwargs)
+
+  def flush(self):
+    # the atomic operation
+    rv = self.__writefile.flush()
+    self.__readfile.close()
+    self.__writefile.close()
+    copymode(self.__file, self.__file + ".tmp")
+    replace(self.__file + ".tmp", self.__file) # atomic on python 3.3+
+    self.__readfile = open(self.__file, "r")
+    self.__writefile = open(self.__file + ".tmp", "w")
+    return rv
+
+  def close(self):
+    self.flush()
+    self.__writefile.close()
+    remove(self.__file + ".tmp")
+    return self.__readfile.close()
+
+  def __iter__(self):
+    return self.__readfile.__iter__()
+
+  def __next__(self):
+    return self.__readfile.__next__()
+
+  def __getattr__(self, name):
+    def method(*args, **kwargs):
+      return self.__readfile.getattr(name)(*args, **kwargs)
+    
+def atomic_open(file, **kwargs):
+  if len(kwargs) > 0:
+    raise ValueError("Not Supported!")
+  return ShadowFile(file)
 
 class PasswordProvisioner(object):
   """The PasswordProvisioner class instantiates three provisioner keys, and uses them
