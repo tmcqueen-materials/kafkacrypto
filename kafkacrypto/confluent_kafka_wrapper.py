@@ -40,14 +40,14 @@ class FutureRecordMetadata(Future):
                                 None, self.key_len, self.value_len, -1)
       self.success(metadata)
 
-  def get(self, timeout=None):
+  def get(self, timeout=None, timeout_jiffy=0.1):
     if timeout is None:
       last_time = 9223372036854775807
       timeout = last_time-time()
     else:
       last_time = time()+timeout
     while not self.is_done and timeout>0:
-      self._producer.poll(min(timeout,1.0))
+      self._producer.poll(min(timeout,timeout_jiffy))
       timeout = last_time-time()
     if not self.is_done:
       raise FutureTimeoutError("Timeout after waiting for %s secs." % (timeout,))
