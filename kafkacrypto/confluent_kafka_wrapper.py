@@ -47,7 +47,7 @@ class FutureRecordMetadata(Future):
     else:
       last_time = time()+timeout
     while not self.is_done and timeout>0:
-      self._producer.poll(timeout)
+      self._producer.poll(min(timeout,1.0))
       timeout = last_time-time()
     if not self.is_done:
       raise FutureTimeoutError("Timeout after waiting for %s secs." % (timeout,))
