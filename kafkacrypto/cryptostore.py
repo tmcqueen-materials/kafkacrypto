@@ -95,6 +95,8 @@ class CryptoStore(object):
       rv = None
       if section in self.__config and str_encode(name,iskey=True) in self.__config[section]:
         rv = str_decode(self.__config[section][str_encode(name,iskey=True)])
+      elif str_encode(name,iskey=True) in self.__config['DEFAULT']:
+        rv = str_decode(self.__config['DEFAULT'][str_encode(name,iskey=True)])
       else:
         rv = default
       self._logger.debug("Loaded name=%s, value=%s from %s", name, rv, section)
