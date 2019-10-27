@@ -1,4 +1,4 @@
-from kafka import KafkaConsumer as Consumer, KafkaProducer as Producer, TopicPartition
+from kafka import KafkaConsumer as Consumer, KafkaProducer as Producer, TopicPartition, OffsetAndMetadata
 from collections import namedtuple
 
 TopicPartitionOffset = namedtuple("TopicPartitionOffset",

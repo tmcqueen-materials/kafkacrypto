@@ -8,6 +8,7 @@ from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
 
 TopicPartition = namedtuple("TopicPartition", ["topic", "partition"])
+OffsetAndMetadata = namedtuple("OffsetAndMetadata", ["offset", "metadata"])
 Message = namedtuple("Message",
   ["topic", "partition", "offset", "timestamp", "headers", "key", "value"])
 RecordMetadata = namedtuple('RecordMetadata',
@@ -152,6 +153,15 @@ class KafkaConsumer(Consumer):
     super().__init__(self.cf_config)
     if topics:
       self.subscribe(topics)
+
+  def commit(self, offsets=None):
+    if offsets==None:
+      return super().commit()
+    else:
+      offs = []
+      for k in offsets.keys():
+        offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
+      return super().commit(offsets=offs)
 
   def subscribe(self, topics=None, pattern=None, listener=None):
     if not topics is None:
