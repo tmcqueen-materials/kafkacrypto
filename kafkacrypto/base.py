@@ -131,9 +131,15 @@ class KafkaCryptoBase(object):
       setattr(self, k, v2 if v2!=None else v)
 
   def get_root(self,topic):
+    wasstr = False
+    if isinstance(topic,(str)):
+      wasstr = True
+      topic = topic.encode('utf-8')
     root = topic.index(self.TOPIC_SEPARATOR)
     if (root != -1):
       root = topic[0:root]
     else:
       root = topic
+    if wasstr:
+      root = root.decode('utf-8')
     return root

@@ -1,6 +1,6 @@
 import pysodium
 import msgpack
-from os import replace, remove
+from os import replace, remove, fsync
 from shutil import copy, copymode
 from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
@@ -94,6 +94,7 @@ class AtomicFile(object):
       rv = self.__writefile.flush()
       pos = self.__writefile.tell()
       self.__readfile.close()
+      fsync(self.__writefile.fileno())
       self.__writefile.close()
       copymode(self.__file, self.__tmpfile)
       replace(self.__tmpfile, self.__file) # atomic on python 3.3+
