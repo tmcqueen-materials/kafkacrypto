@@ -370,7 +370,7 @@ class KafkaCrypto(KafkaCryptoBase):
         return None
       root = self._parent.get_root(topic)
       if len(bytes_) < 1 or bytes_[0] != 1:
-        return KafkaCryptoMessage.fromBytes(bytes_)
+        return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
       msg = msgpack.unpackb(bytes_[1:])
       if (len(msg) != 3):
         raise KafkaCryptoSerializeError("Malformed Message!")
@@ -416,7 +416,7 @@ class KafkaCrypto(KafkaCryptoBase):
         key,nonce = gen.generate(salt=salt)
         msg = KafkaCryptoMessage(pysodium.crypto_secretbox_open(msg,nonce,key),ipt=True)
       except:
-        return KafkaCryptoMessage.fromBytes(bytes_)
+        return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
       finally:
         self._parent._lock.release()
       return msg
