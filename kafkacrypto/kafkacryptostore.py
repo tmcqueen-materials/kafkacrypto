@@ -69,7 +69,7 @@ class KafkaCryptoStore(CryptoStore):
     kafka_config_filtered = {}
     for key in kafka_config:
       if key in Consumer.DEFAULT_CONFIG or key in Producer.DEFAULT_CONFIG:
-        kafka_config_filtered[key] = kafka_config[key]
+        kafka_config_filtered[key.replace('.','_')] = kafka_config[key]
       else:
         self._logger.warning("Filtering out %s:%s from kafka config.", str(key), str(kafka_config[key]))
     if 'group_id' in kafka_config and use!="consumer":
