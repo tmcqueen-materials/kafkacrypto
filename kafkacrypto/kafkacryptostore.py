@@ -24,7 +24,7 @@ class KafkaCryptoStore(CryptoStore):
       super().__init__(nodeId,file)
     # set logging levels
     logging.basicConfig(level=self.load_value('log_level',default=logging.WARNING))
-    logging.getLogger("kafkacrypto").setLevel(self.load_value('log_level',section='kafka-crypto',default=logging.INFO))
+    logging.getLogger("kafkacrypto").setLevel(self.load_value('log_level',section='kafka-crypto',default=logging.WARNING))
 
   def get_kafka_config(self, use, extra=None):
     # kafka parameters in 'kafka'

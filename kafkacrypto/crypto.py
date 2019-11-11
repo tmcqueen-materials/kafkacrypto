@@ -261,6 +261,9 @@ class KafkaCrypto(KafkaCryptoBase):
               if not (k is None) and not (v is None):
                 self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
                 self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
+                if not self._cryptoexchange.valid_spk_chain():
+                  # if using default/temp ROT, send directly as well
+                  self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
                 self._subs_last[root] = [time(),kis]
               else:
                 self._logger.info("Failed to send new subscribe request for root=%s", root)

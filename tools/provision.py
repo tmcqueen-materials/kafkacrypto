@@ -4,10 +4,12 @@ import msgpack
 from configparser import ConfigParser
 from time import time
 from getpass import getpass
+from os import path
 from binascii import unhexlify, hexlify
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
-from kafkacrypto.utils import PasswordProvisioner, str_encode
+from kafkacrypto.utils import PasswordProvisioner
+from kafkacrypto import KafkaCryptoStore
 
 #
 # Global configuration
@@ -64,20 +66,12 @@ while choice<1 or choice>5:
   except ValueError:
     pass
 
-if (choice == 2 or choice == 4):
-  sole = ''
-  while len(sole)<1:
-    sole = input('Will the producer be the only producer of the topics it produces on (y/N)? ')
-  if sole[0].lower() == 'y':
-    sole = True
-  else:
-    sole = False
+sole = False
 
 if (choice == 3 or choice == 4):
   limited = ''
-  while len(limited)<1:
-    limited = input('Limit the consumer to only functioning with controllers (Y/n)? ')
-  if limited[0].lower() == 'n':
+  limited = input('Limit the consumer to only functioning with controllers (Y/n)? ')
+  if len(limited) > 0 and limited[0].lower() == 'n':
     limited = False
   else:
     limited = True
@@ -160,19 +154,33 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 
 # Generate KDF seed first
 if choice<5:
-  with open(nodeID + ".seed", "wb") as f:
-    rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-    f.write(msgpack.packb([0,rb]))
+# Generate KDF seed first, if needed
+  if path.exists(nodeID + ".seed"):
+    with open(nodeID + ".seed", "rb") as f:
+      idx,rb = msgpack.unpackb(f.read())
+  else:
+    with open(nodeID + ".seed", "wb") as f:
+      idx = 0
+      rb = pysodium.randombytes(Ratchet.SECRETSIZE)
+      f.write(msgpack.packb([idx,rb]))
   if len(_ss0_escrow) > 0:
     print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
     print('Escrow public key:', hexlify(_ss0_escrow))
-    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)))
+    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)), " (key index", idx, ")")
   else:
     print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
-    print(nodeID + ':', hexlify(rb))
+    print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
-pk,sk = pysodium.crypto_sign_keypair()
+if path.exists(nodeID + ".crypto"):
+  with open(nodeID + ".crypto", "rb") as f:
+    sk,_ = msgpack.unpackb(f.read())
+    pk = pysodium.crypto_sign_sk_to_pk(sk)
+else:
+  pk,sk = pysodium.crypto_sign_keypair()
+  with open(nodeID + ".crypto", "wb") as f:
+    f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
+
 poison = [[b'usages',_usages[key]]]
 if len(topics) > 0:
   poison.append([b'topics',topics])
@@ -189,56 +197,30 @@ else:
   chain = msgpack.packb([msg])
   pk2 = process_chain(chain,None,None,allowlist=[_msgrot])
   assert len(pk2) >= 3, "Malformed ROT Signed Value"
-  
-print(nodeID, 'public key:', hexlify(pysodium.crypto_sign_sk_to_pk(sk)))
-with open(nodeID + ".crypto", "wb") as f:
-  f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
+print(nodeID, 'public key:', hexlify(pk))
 
 # Third, write config
-cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
-cfg['DEFAULT'] = {}
-cfg['DEFAULT']['node_id'] = str_encode(nodeID)
-cfg[str_encode(nodeID + "-kafka")] = {}
-cfg[str_encode(nodeID + "-kafka-consumer")] = {}
-cfg[str_encode(nodeID + "-kafka-producer")] = {}
-cfg[str_encode(nodeID)] = {}
-cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
-cfg[str_encode(nodeID + "-allowlist")] = {}
-cfg[str_encode(nodeID + "-allowlist")]['rot'] = str_encode(_msgrot)
-cfg[str_encode(nodeID + "-crypto")] = {}
-cfg[str_encode(nodeID + "-crypto")]['chain'] = str_encode(chain)
+kcs = KafkaCryptoStore(nodeID + ".config", nodeID)
+kcs.store_value('chain', chain, section='crypto')
+if kcs.load_value('cryptokey') is None:
+  kcs.store_value('cryptokey', "file#" + nodeID + ".crypto")
+kcs.store_value('rot', _msgrot, section='allowlist')
+if kcs.load_value('temporary', section='allowlist'):
+  print("Found temporary ROT, removing.")
+  kcs.store_value('temporary', None, section='allowlist')
 if choice<5:
-  cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
-  cfg[str_encode(nodeID + "-kafka-crypto")] = {}
-  cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
-  cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
-  cfg[str_encode(nodeID + "-crypto")]['maxage'] = str_encode(_lifetime)
+  kcs.store_value('maxage', _lifetime, section='crypto')
   if _msgchkrot != _msgrot:
-    cfg[str_encode(nodeID + "-allowlist")]['chainrot'] = str_encode(_msgchkrot)
+    kcs.store_value('chainrot', _msgchkrot, section='allowlist')
   # If controller, list of provisioners
   if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
-    cfg[str_encode(nodeID + "-allowlist")]['provisioners0'] = str_encode(_msgchainrot)
-  DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name components, used to find root name and subs/keys
-               'TOPIC_SUFFIX_REQS': b'.reqs',  # suffixes should begin with separator or things will not work!
-               'TOPIC_SUFFIX_KEYS': b'.keys',
-               'TOPIC_SUFFIX_SUBS': b'.subs', # change to be same as REQS if this is a controller-less setup
-               'CRYPTO_MAX_PGEN_AGE': 604800,  # in s
-               'CRYPTO_SUB_INTERVAL': 60,      # in s
-               'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
-               'MGMT_TOPIC_CHAINS': b'chains',
-               'MGMT_TOPIC_ALLOWLIST': b'allowlist',
-               'MGMT_TOPIC_DENYLIST': b'denylist',
-               'MGMT_POLL_INTERVAL': 500,      # in ms
-               'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
-               'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
-               'MGMT_LONG_KEYINDEX': True,
-               'DESER_INITIAL_WAIT_INTERVALS': 10,
-             }
-  if ((choice == 2 or choice == 4) and sole == True):
-    DEFAULTS['MGMT_LONG_KEYINDEX'] = False
-  for k in DEFAULTS:
-    cfg[str_encode(nodeID)][str_encode(k)] = str_encode(DEFAULTS[k])
+    kcs.store_value('provisioners0', _msgchainrot, section='allowlist')
+  if kcs.load_value('ratchet') is None:
+    kcs.store_value('ratchet', "file#" + nodeID + ".seed")
+  if ((choice == 2 or choice == 4)):
+    kcs.store_value('mgmt_long_keyindex', sole)
 elif choice == 5:
-  cfg[str_encode(nodeID + "-chainkeys")] = {}
-with open(nodeID + ".config", "w") as f:
-  cfg.write(f)
+  kcs.store_value("test", "test", section="chainkeys")
+  kcs.store_value("test", None, section="chainkeys")
+
+print('Congratulations! Provisioning is complete.')

@@ -225,6 +225,13 @@ class CryptoExchange(object):
     finally:
       self.__allowdenylist_lock.release()
 
+  def valid_spk_chain(self):
+    with self.__spk_chain_lock:
+      if len(self.__spk_chain) > 0:
+        return True
+      else:
+        return False
+
   def replace_spk_chain(self, newchain):
     # update_spk_chain captures any exceptions and returns None when they happen.
     newchain = self.__update_spk_chain(newchain)
