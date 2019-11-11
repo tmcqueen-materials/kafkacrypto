@@ -106,7 +106,7 @@ def validate_poison(name, value, pk):
     return True
   return False
 
-def intersect_certs(c1, c2):
+def intersect_certs(c1, c2, same_pk):
   # main logic for determining the minimum allowed values consistent
   # with c1 and c2's constraints. Returns an array with the same
   # structure as a chain entry, with 0,1 set as the intersection of
@@ -121,6 +121,8 @@ def intersect_certs(c1, c2):
   else:
     pk.append(c1[0])
   poisons = [[-1,msgpack.unpackb(c1[1])], [0,msgpack.unpackb(c2[1])]]
+  if same_pk:
+    poisons = [[0,msgpack.unpackb(c1[1])], [0,msgpack.unpackb(c2[1])]]
   poison_topics = None
   poison_usages = None
   pathlen = None
@@ -199,9 +201,9 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
           elif key_in_list(pk[2],allowlist)!=None:
             # allowlisted subkey overrides denylist
             denylisted = False
-            pk = intersect_certs(pk,msgpack.unpackb(key_in_list(pk[2],allowlist)))
+            pk = intersect_certs(pk,msgpack.unpackb(key_in_list(pk[2],allowlist)),True)
           try:
-            pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(npk,pk[2])))
+            pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(npk,pk[2])),False)
           except:
             raise ValueError("Invalid signing!")
         else:
