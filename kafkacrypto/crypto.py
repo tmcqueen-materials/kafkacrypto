@@ -83,7 +83,6 @@ class KafkaCrypto(KafkaCryptoBase):
       if seed!=None and seed.startswith('file#'):
         seed = seed[5:]
       if (seed is None):
-        # legacy
         seed = nodeID + ".seed"
         self._cryptostore.store_value('ratchet', 'file#' + seed)
     if (isinstance(seed,(str,))):

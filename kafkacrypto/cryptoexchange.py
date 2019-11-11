@@ -5,6 +5,7 @@ import pysodium
 import msgpack
 import logging
 from kafkacrypto.chain import process_chain, key_in_list
+from binascii import unhexlify
 
 class CryptoExchange(object):
   """Class implementing the key exchange protocol used to transmit/receive
@@ -32,7 +33,7 @@ class CryptoExchange(object):
   #
   def __init__(self, chain, cryptokey, maxage=0, randombytes=0, allowlist=None, denylist=None):
     self._logger = logging.getLogger(__name__)
-    self.__maxage = maxage if maxage>0 else 86400
+    self.__maxage = maxage if (maxage!=None and maxage>0) else 86400
     self.__randombytes = randombytes if randombytes>=32 else 32
     self.__cryptokey = cryptokey
     self.__spk_chain = []
@@ -87,6 +88,13 @@ class CryptoExchange(object):
       # and finally put as last member of a msgpacked array chaining to ROT
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
+        if (len(tchain) == 0):
+          poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']],[b'pathlen',1]])
+          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()])
+          _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
+          tchain.append(pysodium.crypto_sign(lastcert,tempsk))
+          provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)])
+          self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
       tchain.append(msg)
       msg = msgpack.packb(tchain)
     except Exception as e:
@@ -158,6 +166,13 @@ class CryptoExchange(object):
       # and finally put as last member of a msgpacked array chaining to ROT
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
+        if (len(tchain) == 0):
+          poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt-request',b'key-encrypt-subscribe']],[b'pathlen',1]])
+          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()])
+       	  _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
+          tchain.append(pysodium.crypto_sign(lastcert,tempsk))
+       	  provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)])
+          self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
       tchain.append(msg)
       msg = msgpack.packb(tchain)
       return msg
@@ -220,6 +235,8 @@ class CryptoExchange(object):
     # We have a new candidate chain to replace the current one (if any). We
     # first must check it is a valid chain ending in our signing public key.
     #
+    if (newchain is None):
+      return None
     try:
       with self.__allowdenylist_lock:
         pk = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)

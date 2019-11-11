@@ -1,6 +1,8 @@
 from time import time
 from threading import Lock
 from configparser import ConfigParser
+from os import path
+from binascii import unhexlify
 import traceback
 import pysodium
 import msgpack
@@ -31,6 +33,8 @@ class CryptoStore(object):
   def __init__(self, nodeID=None, file=None):
     self._logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
+      if (not path.exists(file) and isinstance(nodeID, (str))):
+        self.__init_cryptostore(file, nodeID)
       file = atomic_open(file,'r+')
     self.__cryptokey = None
     self.__file = file
@@ -146,3 +150,37 @@ class CryptoStore(object):
       value = self.__cryptokey.wrap_opaque(value)
       self.store_value(name, value, section)
 
+  def __init_cryptostore(self, file, nodeID):
+    self._logger.warning("Initializing new CryptoStore file=%s, nodeID=%s.", file, nodeID)
+    self._logger.warning("  Looking for system CA list.")
+    if (path.exists("/etc/pki/tls/cert.pem")): # RHEL/CentOS
+      ssl_cafile = "/etc/pki/tls/cert.pem"
+    elif (path.exists("/usr/lib/ssl/certs/ca-certificates.crt")): # Debian/Ubuntu
+      ssl_cafile = "/usr/lib/ssl/certs/ca-certificates.crt"
+    else:
+      ssl_cafile = ""
+      self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.", file)
+    cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
+    cfg['DEFAULT'] = {}
+    cfg['DEFAULT']['node_id'] = str_encode(nodeID)
+    cfg[str_encode(nodeID + "-kafka")] = {}
+    cfg[str_encode(nodeID + "-kafka")]['bootstrap_servers'] = ""
+    cfg[str_encode(nodeID + "-kafka")]['security_protocol'] = "SSL"
+    cfg[str_encode(nodeID + "-kafka")]['ssl_cafile'] = ssl_cafile
+    cfg[str_encode(nodeID + "-kafka-consumer")] = {}
+    cfg[str_encode(nodeID + "-kafka-producer")] = {}
+    cfg[str_encode(nodeID)] = {}
+    cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
+    cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
+    cfg[str_encode(nodeID + "-allowlist")] = {}
+    self._logger.warning("  Including a default/temporary root of trust. Once proper access is provisioned, this root of trust should be removed or distrusted.");
+    cfg[str_encode(nodeID + "-allowlist")]['temporary'] = str_encode(msgpack.packb([0,msgpack.packb([[b'pathlen',2]]),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')]))
+    cfg[str_encode(nodeID + "-denylist")] = {}
+    cfg[str_encode(nodeID + "-crypto")] = {}
+    cfg[str_encode(nodeID + "-kafka-crypto")] = {}
+    cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
+    cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
+    cfg[str_encode(nodeID)][str_encode('MGMT_LONG_KEYINDEX')] = str_encode(True)
+    with open(file, "w") as f:
+      cfg.write(f)
+    self._logger.warning("  CryptoStore Initialized.")

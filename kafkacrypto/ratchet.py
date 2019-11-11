@@ -2,6 +2,9 @@ from kafkacrypto.keygenerator import KeyGenerator
 from kafkacrypto.exceptions import KafkaCryptoRatchetError
 import pysodium
 import msgpack
+import logging
+from os import path
+from binascii import unhexlify
 
 class Ratchet(KeyGenerator):
   """Class utilizing file-backed storage to provide a ratcheting key generator.
@@ -26,6 +29,8 @@ class Ratchet(KeyGenerator):
   def __init__(self, file):
     super().__init__()
     if (isinstance(file, (str))):
+      if (not path.exists(file)):
+        self.__init_ratchet(file)
       file = open(file, 'rb+', 0)
     self.__file = file
     self.increment()
@@ -67,3 +72,14 @@ class Ratchet(KeyGenerator):
       ki = pysodium.crypto_generichash(node + ki)
     kg, vg = KeyGenerator.get_key_value_generators(key)
     return (ki, key, kg, vg)
+
+  def __init_ratchet(self, file):
+    logger = logging.getLogger(__name__)
+    logger.warning("Initializing new Ratchet file %s", file)
+    with open(file, "wb") as f:
+      rb = pysodium.randombytes(Ratchet.SECRETSIZE)
+      f.write(msgpack.packb([0,rb]))
+      _ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
+      logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
+      logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())
+    logger.warning("  Ratchet Initialized.")

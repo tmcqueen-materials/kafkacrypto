@@ -2,6 +2,7 @@ from threading import Lock
 import pysodium
 import logging
 import msgpack
+from os import path
 
 class CryptoKey(object):
   """Class utilizing file-backed storage to store (long-term) private key
@@ -25,6 +26,8 @@ class CryptoKey(object):
   def __init__(self, file):
     self._logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
+      if (not path.exists(file)):
+        self.__init_cryptokey(file)
       with open(file, 'rb') as file:
         data = file.read()
     else:
@@ -102,3 +105,11 @@ class CryptoKey(object):
     # caller must hold self.__eklock prior to calling
     self.__esk[topic].pop(usage)
     self.__epk[topic].pop(usage)
+
+  def __init_cryptokey(self, file):
+    self._logger.warning("Initializing new CryptoKey file %s", file)
+    pk,sk = pysodium.crypto_sign_keypair()
+    self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
+    with open(file, "wb") as f:
+      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
+    self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")

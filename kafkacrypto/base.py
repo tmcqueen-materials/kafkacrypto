@@ -87,8 +87,11 @@ class KafkaCryptoBase(object):
     self.__configure()
     if (cryptokey is None):
       cryptokey = self._cryptostore.load_value('cryptokey')
-      if cryptokey.startswith('file#'):
+      if cryptokey!=None and cryptokey.startswith('file#'):
         cryptokey = cryptokey[5:]
+      if (cryptokey is None):
+        cryptokey = nodeID + ".crypto"
+        self._cryptostore.store_value('cryptokey', 'file#' + cryptokey)
     if (isinstance(cryptokey,(str))):
       cryptokey = CryptoKey(file=cryptokey)
     if (not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
