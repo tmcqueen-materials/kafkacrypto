@@ -15,7 +15,7 @@ from kafkacrypto import KafkaCryptoStore
 # Global configuration
 #
 
-_lifetime = 31622400 # lifetime (1 year)
+_lifetime = 316224000 # lifetime (10 years)
 _usages = {  'producer': [b'key-encrypt'],
              'consumer': [b'key-encrypt-request',b'key-encrypt-subscribe'],
              'prodcon': [b'key-encrypt',b'key-encrypt-request',b'key-encrypt-subscribe'],
