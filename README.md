@@ -116,6 +116,7 @@ Alternative implementations of Ratchet and Cryptokey enable secrets to be manage
 It is also possible to use `my-node-ID.config` to manage all configuration directives, including those that control Kafka. A sample implementation, which reads the node ID from `node_id` in the `DEFAULT` section is:
 ```python
 #!/usr/bin/python3
+from sys import argv
 from kafkacrypto import KafkaCrypto, KafkaCryptoStore, KafkaConsumer, KafkaProducer
 
 # Process configuration file
