@@ -208,9 +208,11 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
             raise ValueError("Invalid signing!")
         else:
           pk = msgpack.unpackb(npk) # root is unsigned
-      # must finally check if leaf key is in allowlist, which overrides any denylist entries
+      # must finally check if leaf key is in allowlist/denylist
       if key_in_list(pk[2],allowlist)!=None:
         denylisted = False
+      if key_in_list(pk[2],denylist)!=None:
+        denylisted = True
       # make sure our chain doesn't have breaking denylisted keys
       if denylisted:
         raise ValueError("Chain uses denylisted public key")
