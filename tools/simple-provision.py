@@ -205,7 +205,10 @@ if kcs.load_value('cryptokey') is None:
 if kcs.load_value('ratchet') is None:
   kcs.store_value('ratchet', "file#" + nodeID + ".seed")
 if ((choice == 2 or choice == 4)):
-  kcs.store_value('mgmt_long_keyindex', sole)
+  if sole:
+    kcs.store_value('mgmt_long_keyindex', False)
+  else:
+    kcs.store_value('mgmt_long_keyindex', True)
 
 print('Congratulations! Provisioning is complete.')
 
