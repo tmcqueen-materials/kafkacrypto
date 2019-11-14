@@ -158,8 +158,12 @@ class CryptoStore(object):
     elif (path.exists("/usr/lib/ssl/certs/ca-certificates.crt")): # Debian/Ubuntu
       ssl_cafile = "/usr/lib/ssl/certs/ca-certificates.crt"
     else:
-      ssl_cafile = ""
-      self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.", file)
+      try:
+        import certifi
+        ssl_cafile = certifi.where()
+      except:
+        ssl_cafile = ""
+        self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.", file)
     cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
     cfg['DEFAULT'] = {}
     cfg['DEFAULT']['node_id'] = str_encode(nodeID)

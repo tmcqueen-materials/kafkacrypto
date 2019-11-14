@@ -16,7 +16,7 @@ setuptools.setup(
   url="https://github.com/tmcqueen-materials/kafkacrypto",
   packages=setuptools.find_packages(),
   python_requires='>=3.3',
-  install_requires=['pysodium>=0.7.1','msgpack>=0.6.0','kafka-python>=1.4.4'],
+  install_requires=['pysodium>=0.7.1','msgpack>=0.6.0','kafka-python>=1.4.4','certifi'],
   classifiers=[
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
