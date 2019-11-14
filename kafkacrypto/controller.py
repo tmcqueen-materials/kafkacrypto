@@ -116,7 +116,7 @@ class KafkaCryptoController(KafkaCryptoBase):
               self._logger.info("Valid consumer key request on topic=%s, root=%s, msgkey=%s. Resending to topic=%s, msgkey=%s", topic, root, msg.key, root + self.TOPIC_SUFFIX_REQS, k)
               self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
             else:
-              self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: ", topic, root, msg)
+              self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: %s", topic, root, msg)
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)

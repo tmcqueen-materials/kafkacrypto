@@ -2,6 +2,7 @@ from time import time
 import traceback
 import pysodium
 import msgpack
+import logging
 from kafkacrypto.chain import process_chain
 
 class Provisioners(object):
@@ -29,9 +30,9 @@ class Provisioners(object):
       except:
         pass
       if (pk is None):
-        raise ValueError("Chain not signed by authorized provisioner.")
+        raise ValueError("Request did not validate.")
       msg = cryptoexchange.signed_epk(topic, epk=pk[2])
     except Exception as e:
-      print("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      logging.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       return (None, None)
     return (msgkey, msg)
