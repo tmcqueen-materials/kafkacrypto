@@ -56,7 +56,7 @@ class KafkaCrypto(KafkaCryptoBase):
   #               indexed by full topic.
   # _tps_offsets: dict of offsets for each tps. Used since kp,kc may have been
   #               configured without groupIDs, so we have to keep track of our
-  #               own offsets.
+  #               own offsets. This is the next offset to process.
   #               indexed by full topic.
   # _subs_needed: array of root topics for which new subscriptions are needed.
   #   _subs_last: dict of subscriptions that were requested (by root topic).
@@ -147,7 +147,7 @@ class KafkaCrypto(KafkaCryptoBase):
           topic = msg.topic
           if (isinstance(topic,(str,))):
             topic = topic.encode('utf-8')
-          self._tps_offsets[topic] = msg.offset
+          self._tps_offsets[topic] = msg.offset+1
           self._logger.debug("Processing message: %s", msg)
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
