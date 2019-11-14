@@ -252,7 +252,7 @@ class KafkaCrypto(KafkaCryptoBase):
       subs_needed_next = []
       for root in self._subs_needed:
         if root in self._cwaits.keys():
-          self._logger.info("Attempting (Re)subscribe to root=%s", root)
+          self._logger.debug("Attempting (Re)subscribe to root=%s", root)
           kis = list(self._cwaits[root].keys())
           if len(kis) > 0:
             if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
@@ -269,7 +269,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._logger.info("Failed to send new subscribe request for root=%s", root)
                 subs_needed_next.append(root)
             else:
-              self._logger.info("Deferring (re)subscriptions for root=%s due to pending key request.", root)
+              self._logger.debug("Deferring (re)subscriptions for root=%s due to pending key request.", root)
               subs_needed_next.append(root)
           else:
             self._logger.info("No new keys needed for root=%s", root)
@@ -434,7 +434,7 @@ class KafkaCrypto(KafkaCryptoBase):
 
   def get_producer(self,root):
     if (self.MGMT_LONG_KEYINDEX == True):
-      ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._nodeID)
+      ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_spk())
     else:
       ki,ks,kg,vg = self._seed.get_key_value_generators(root)
     self._cur_pgens[root] = ki
