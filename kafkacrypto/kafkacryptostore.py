@@ -1,6 +1,7 @@
 from kafka import KafkaConsumer as Consumer, KafkaProducer as Producer
 from kafkacrypto.cryptostore import CryptoStore
 import logging
+from os import path
 
 class KafkaCryptoStore(CryptoStore):
   """This extends CryptoStore to be aware of how to read and prepare
@@ -11,20 +12,37 @@ class KafkaCryptoStore(CryptoStore):
                      store configuration data. Must be readable, writable,
                      and seekable, with no other writers than one instance
                      of this class.
-       nodeId (str): Optional manual specification of node_id. Useful only
+       nodeID (str): Optional manual specification of node_id. Useful only
                      if configuration data for many different nodes are
                      stored in a single file (see above for why you do NOT
-                     want to do that), or if nodeId is not specified
+                     want to do that), or if nodeID is not specified
                      in the configuration file.
   """
-  def __init__(self, file, nodeId=None):
-    if nodeId is None:
+  def __init__(self, file, nodeID=None):
+    if nodeID is None:
       super().__init__(file=file)
     else:
-      super().__init__(nodeId,file)
+      super().__init__(nodeID,file)
+    if self._need_init:
+      self.__init_kafkacryptostore()
     # set logging levels
     logging.basicConfig(level=self.load_value('log_level',default=logging.WARNING))
     logging.getLogger("kafkacrypto").setLevel(self.load_value('log_level',section='crypto',default=logging.WARNING))
+    # Check for CA list if not set
+    if len(self.load_value('ssl_cafile',section='kafka',default='')) < 1:
+      self._logger.warning("  Looking for system CA list.")
+      if (path.exists("/etc/pki/tls/cert.pem")): # RHEL/CentOS
+        ssl_cafile = "/etc/pki/tls/cert.pem"
+      elif (path.exists("/usr/lib/ssl/certs/ca-certificates.crt")): # Debian/Ubuntu
+        ssl_cafile = "/usr/lib/ssl/certs/ca-certificates.crt"
+      else:
+        try:
+          import certifi
+          ssl_cafile = certifi.where()
+        except:
+          ssl_cafile = ""
+          self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.")
+      self.store_value('ssl_cafile', ssl_cafile, section='kafka')
 
   def get_kafka_config(self, use, extra=None):
     # kafka parameters in 'kafka'
@@ -76,3 +94,18 @@ class KafkaCryptoStore(CryptoStore):
       kafka_config.pop('group_id',None)
     # do other producer/consumer filtering?
     return kafka_config
+
+  def __init_kafkacryptostore(self):
+    self.store_value('bootstrap_servers', '', section='kafka')
+    self.store_value('security_protocol', 'SSL', section='kafka')
+    self.store_value('test','test',section='kafka-consumer')
+    self.store_value('test',None,section='kafka-consumer')
+    self.store_value('test','test',section='kafka-producer')
+    self.store_value('test',None,section='kafka-producer')
+    self.store_value('test','test',section='kafka-crypto')
+    self.store_value('test',None,section='kafka-crypto')
+    self.store_value('test','test',section='kafka-crypto-consumer')
+    self.store_value('test',None,section='kafka-crypto-consumer')
+    self.store_value('test','test',section='kafka-crypto-producer')
+    self.store_value('test',None,section='kafka-crypto-producer')
+

@@ -35,14 +35,14 @@ class CryptoStore(object):
     self.__lock = Lock()
     self.__keylock = Lock()
 
-    need_init = False
+    self._need_init = False
     if (file is None) and isinstance(nodeID, (str)) and len(nodeID) > 0:
       file = nodeID + ".config"
     if (isinstance(file, (str))):
       if (not path.exists(file) and isinstance(nodeID, (str))):
         with open(file, "w") as f:
           f.write("[DEFAULT]\n")
-        need_init = True
+        self._need_init = True
       file = atomic_open(file,'r+')
     self.__cryptokey = None
     self.__file = file
@@ -66,11 +66,8 @@ class CryptoStore(object):
         self.store_value("node_id", nodeID, section="DEFAULT", rawSection=True)
     self._nodeID = nodeID
 
-    if need_init:
+    if self._need_init:
       self.__init_cryptostore(file, nodeID)
-
-    if not (nodeID in self.__config):
-      self.__config[nodeID] = {}
 
   def get_nodeID(self):
     # read-only, no lock needed
@@ -119,7 +116,7 @@ class CryptoStore(object):
     return rv
 
   def store_value(self, name, value, section=None, rawSection=False):
-    self.store_values([[name,value]], section=section)
+    self.store_values([[name,value]], section=section, rawSection=rawSection)
 
   def store_values(self, namevals, section=None, rawSection=False):
     if len(namevals) < 1:
@@ -164,25 +161,8 @@ class CryptoStore(object):
 
   def __init_cryptostore(self, file, nodeID):
     self._logger.warning("Initializing new CryptoStore file=%s, nodeID=%s.", file, nodeID)
-    self._logger.warning("  Looking for system CA list.")
-    if (path.exists("/etc/pki/tls/cert.pem")): # RHEL/CentOS
-      ssl_cafile = "/etc/pki/tls/cert.pem"
-    elif (path.exists("/usr/lib/ssl/certs/ca-certificates.crt")): # Debian/Ubuntu
-      ssl_cafile = "/usr/lib/ssl/certs/ca-certificates.crt"
-    else:
-      try:
-        import certifi
-        ssl_cafile = certifi.where()
-      except:
-        ssl_cafile = ""
-        self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.", file)
-    self.store_value('bootstrap_servers', '', section='kafka')
-    self.store_value('security_protocol', 'SSL', section='kafka')
-    self.store_value('ssl_cafile', ssl_cafile, section='kafka')
-    self.store_value('test','test',section='kafka-consumer')
-    self.store_value('test',None,section='kafka-consumer')
-    self.store_value('test','test',section='kafka-producer')
-    self.store_value('test',None,section='kafka-producer')
+    self.store_value('test','test')
+    self.store_value('test',None)
     self.store_value('MGMT_LONG_KEYINDEX',True)
     self._logger.warning("  Including a default/temporary root of trust. Once proper access is provisioned, this root of trust should be removed or distrusted.");
     self.store_value('temporary',msgpack.packb([0,msgpack.packb([[b'pathlen',2]]),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')]), section='allowlist')
@@ -190,10 +170,4 @@ class CryptoStore(object):
     self.store_value('test',None,section='denylist')
     self.store_value('test','test',section='crypto')
     self.store_value('test',None,section='crypto')
-    self.store_value('test','test',section='kafka-crypto')
-    self.store_value('test',None,section='kafka-crypto')
-    self.store_value('test','test',section='kafka-crypto-consumer')
-    self.store_value('test',None,section='kafka-crypto-consumer')
-    self.store_value('test','test',section='kafka-crypto-producer')
-    self.store_value('test',None,section='kafka-crypto-producer')
     self._logger.warning("  CryptoStore Initialized.")
