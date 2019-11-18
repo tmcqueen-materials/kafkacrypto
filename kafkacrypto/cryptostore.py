@@ -32,9 +32,17 @@ class CryptoStore(object):
   #
   def __init__(self, nodeID=None, file=None):
     self._logger = logging.getLogger(__name__)
+    self.__lock = Lock()
+    self.__keylock = Lock()
+
+    need_init = False
+    if (file is None) and isinstance(nodeID, (str)) and len(nodeID) > 0:
+      file = nodeID + ".config"
     if (isinstance(file, (str))):
       if (not path.exists(file) and isinstance(nodeID, (str))):
-        self.__init_cryptostore(file, nodeID)
+        with open(file, "w") as f:
+          f.write("[DEFAULT]\n")
+        need_init = True
       file = atomic_open(file,'r+')
     self.__cryptokey = None
     self.__file = file
@@ -50,15 +58,19 @@ class CryptoStore(object):
         nodeID = nodeIDfile
       else:
         raise KafkaCryptoStoreError("Node ID " + str(nodeID) + " not a string or not specified!")
-    elif (isinstance(nodeIDfile, (str))	and len(nodeIDfile) > 0 and nodeIDfile != nodeID):
-      raise KafkaCryptoStoreError("Node ID mismatch in file " + nodeIDfile + " versus " + str(nodeID))
+    else:
+      if (isinstance(nodeIDfile, (str)) and len(nodeIDfile) > 0 and nodeIDfile != nodeID):
+        raise KafkaCryptoStoreError("Node ID mismatch in file " + nodeIDfile + " versus " + str(nodeID))
+      else:
+        self._nodeID = nodeID
+        self.store_value("node_id", nodeID, section="DEFAULT", rawSection=True)
     self._nodeID = nodeID
+
+    if need_init:
+      self.__init_cryptostore(file, nodeID)
 
     if not (nodeID in self.__config):
       self.__config[nodeID] = {}
-
-    self.__lock = Lock()
-    self.__keylock = Lock()
 
   def get_nodeID(self):
     # read-only, no lock needed
@@ -106,16 +118,16 @@ class CryptoStore(object):
       self._logger.debug("Loaded name=%s, value=%s from %s", name, rv, section)
     return rv
 
-  def store_value(self, name, value, section=None):
+  def store_value(self, name, value, section=None, rawSection=False):
     self.store_values([[name,value]], section=section)
 
-  def store_values(self, namevals, section=None):
+  def store_values(self, namevals, section=None, rawSection=False):
     if len(namevals) < 1:
       self._logger.debug("store_values called with no parameters.")
       return
     if section is None:
       section = self._nodeID
-    else:
+    elif not rawSection:
       section = self._nodeID + "-" + section
     section = str_encode(section)
     with self.__lock:
@@ -164,27 +176,24 @@ class CryptoStore(object):
       except:
         ssl_cafile = ""
         self._logger.warning("    No system-wide CA list found. Update ssl_cafile in %s to point to a list of CAs that should be trusted for SSL/TLS endpoints.", file)
-    cfg = ConfigParser(delimiters=(':'),comment_prefixes=(';'))
-    cfg['DEFAULT'] = {}
-    cfg['DEFAULT']['node_id'] = str_encode(nodeID)
-    cfg[str_encode(nodeID + "-kafka")] = {}
-    cfg[str_encode(nodeID + "-kafka")]['bootstrap_servers'] = ""
-    cfg[str_encode(nodeID + "-kafka")]['security_protocol'] = "SSL"
-    cfg[str_encode(nodeID + "-kafka")]['ssl_cafile'] = ssl_cafile
-    cfg[str_encode(nodeID + "-kafka-consumer")] = {}
-    cfg[str_encode(nodeID + "-kafka-producer")] = {}
-    cfg[str_encode(nodeID)] = {}
-    cfg[str_encode(nodeID)]['cryptokey'] = str_encode("file#" + nodeID + ".crypto")
-    cfg[str_encode(nodeID)]['ratchet'] = str_encode("file#" + nodeID + ".seed")
-    cfg[str_encode(nodeID + "-allowlist")] = {}
+    self.store_value('bootstrap_servers', '', section='kafka')
+    self.store_value('security_protocol', 'SSL', section='kafka')
+    self.store_value('ssl_cafile', ssl_cafile, section='kafka')
+    self.store_value('test','test',section='kafka-consumer')
+    self.store_value('test',None,section='kafka-consumer')
+    self.store_value('test','test',section='kafka-producer')
+    self.store_value('test',None,section='kafka-producer')
+    self.store_value('MGMT_LONG_KEYINDEX',True)
     self._logger.warning("  Including a default/temporary root of trust. Once proper access is provisioned, this root of trust should be removed or distrusted.");
-    cfg[str_encode(nodeID + "-allowlist")]['temporary'] = str_encode(msgpack.packb([0,msgpack.packb([[b'pathlen',2]]),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')]))
-    cfg[str_encode(nodeID + "-denylist")] = {}
-    cfg[str_encode(nodeID + "-crypto")] = {}
-    cfg[str_encode(nodeID + "-kafka-crypto")] = {}
-    cfg[str_encode(nodeID + "-kafka-crypto-consumer")] = {}
-    cfg[str_encode(nodeID + "-kafka-crypto-producer")] = {}
-    cfg[str_encode(nodeID)][str_encode('MGMT_LONG_KEYINDEX')] = str_encode(True)
-    with open(file, "w") as f:
-      cfg.write(f)
+    self.store_value('temporary',msgpack.packb([0,msgpack.packb([[b'pathlen',2]]),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')]), section='allowlist')
+    self.store_value('test','test',section='denylist')
+    self.store_value('test',None,section='denylist')
+    self.store_value('test','test',section='crypto')
+    self.store_value('test',None,section='crypto')
+    self.store_value('test','test',section='kafka-crypto')
+    self.store_value('test',None,section='kafka-crypto')
+    self.store_value('test','test',section='kafka-crypto-consumer')
+    self.store_value('test',None,section='kafka-crypto-consumer')
+    self.store_value('test','test',section='kafka-crypto-producer')
+    self.store_value('test',None,section='kafka-crypto-producer')
     self._logger.warning("  CryptoStore Initialized.")
