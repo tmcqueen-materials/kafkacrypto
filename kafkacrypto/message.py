@@ -34,13 +34,16 @@ class KafkaCryptoMessage(object):
   def isCleartext(self):
     if self._deser != None and self._topic != None:
       # Attempt decryption
-      kcm = self._deser.deserialize(self._topic, self._msg)
-      if kcm._ipt:
-        # success
-        self._msg = kcm._msg
-        self._ipt = True
-        self._deser = None
-        self._topic = None
+      try:
+        kcm = self._deser.deserialize(self._topic, self._msg)
+        if kcm._ipt:
+          # success
+          self._msg = kcm._msg
+          self._ipt = True
+          self._deser = None
+          self._topic = None
+      except:
+        pass
     return self._ipt
 
   def getMessage(self):
