@@ -378,7 +378,7 @@ class KafkaCrypto(KafkaCryptoBase):
         if (len(msg) != 3):
           raise KafkaCryptoSerializeError("Malformed Message!")
       except Exception as e:
-        self._parent._logger.info("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+        self._parent._logger.debug("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
         return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
       ki = msg[0]
       salt = msg[1]
