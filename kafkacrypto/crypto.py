@@ -229,12 +229,12 @@ class KafkaCrypto(KafkaCryptoBase):
       self._lock.acquire()
       self._logger.debug("Processing subscription changes.")
       if self._tps_updated == True:
-        self._logger.info("Subscriptions changed, adjusting.")
+        self._logger.debug("Subscriptions changed, adjusting.")
         tpo = []
         for tk in self._tps.keys():
           tpo.append(TopicPartitionOffset(self._tps[tk].topic, self._tps[tk].partition, self._tps_offsets[tk]))
         self._kc.assign_and_seek(tpo)
-        self._logger.info("Subscriptions adjusted.")
+        self._logger.debug("Subscriptions adjusted.")
         if (self._kc.config['group_id'] is None):
           self._logger.info("No group_id, seeking to beginning.")
           self._kc.seek_to_beginning()
@@ -272,7 +272,7 @@ class KafkaCrypto(KafkaCryptoBase):
               self._logger.debug("Deferring (re)subscriptions for root=%s due to pending key request.", root)
               subs_needed_next.append(root)
           else:
-            self._logger.info("No new keys needed for root=%s", root)
+            self._logger.debug("No new keys needed for root=%s", root)
       self._subs_needed = subs_needed_next
       self._lock.release()
 
@@ -420,7 +420,7 @@ class KafkaCrypto(KafkaCryptoBase):
             sleep(self.WAIT_INTERVAL)
             self._parent._lock.acquire()
         if not (root in self._parent._cgens.keys()) or not (ki in self._parent._cgens[root].keys()):
-          self._parent._logger.info("No decryption key found for root=%s, key index=%s. Returning encrypted message.", root, ki)
+          self._parent._logger.debug("No decryption key found for root=%s, key index=%s. Returning encrypted message.", root, ki)
           raise ValueError
         gen = self._parent._cgens[root][ki][self._kv]
         key,nonce = gen.generate(salt=salt)
