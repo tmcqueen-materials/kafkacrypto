@@ -333,7 +333,11 @@ class KafkaCrypto(KafkaCryptoBase):
       if value is None:
         return None
       if (isinstance(value,(KafkaCryptoMessage,))):
-        value = value.getMessage()
+        if (value.isCleartext(retry=False)):
+          value = value.getMessage(retry=False)
+        else:
+          # already serialized and encrypted
+          return bytes(value)
       if (not isinstance(value,(bytes,bytearray))):
         raise KafkaCryptoSerializeError("Passed value is not bytes or a KafkaCryptoMessage")
       root = self._parent.get_root(topic)

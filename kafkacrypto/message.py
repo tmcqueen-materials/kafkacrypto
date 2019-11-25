@@ -31,8 +31,8 @@ class KafkaCryptoMessage(object):
       self._deser = None
       self._topic = None
 
-  def isCleartext(self):
-    if self._deser != None and self._topic != None:
+  def isCleartext(self, retry=True):
+    if self._deser != None and self._topic != None and retry:
       # Attempt decryption
       try:
         kcm = self._deser.deserialize(self._topic, self._msg)
@@ -46,8 +46,8 @@ class KafkaCryptoMessage(object):
         pass
     return self._ipt
 
-  def getMessage(self):
-    if (not self.isCleartext()):
+  def getMessage(self, retry=True):
+    if (not self.isCleartext(retry=retry)):
       raise KafkaCryptoMessageError("Message not decrypted!")
     return self._msg
 
