@@ -26,7 +26,11 @@ class KafkaCryptoStore(CryptoStore):
     if self._need_init:
       self.__init_kafkacryptostore()
     # set logging levels
+    # This line ensures a default level if logger hasnt yet been used
     logging.basicConfig(level=self.load_value('log_level',default=logging.WARNING))
+    # This line ensures a default level on the root logger if logger has been used
+    logging.getLogger().setLevel(self.load_value('log_level',default=logging.WARNING))
+    # This line sets the kafkacrypto logger level
     logging.getLogger("kafkacrypto").setLevel(self.load_value('log_level',section='crypto',default=logging.WARNING))
     # Check for CA list if not set
     if len(self.load_value('ssl_cafile',section='kafka',default='')) < 1:
