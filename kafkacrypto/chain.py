@@ -16,7 +16,7 @@ def key_in_list(wanted, choices):
   if wanted is None or choices is None:
     return None
   for c in choices:
-    pk = msgpack.unpackb(c)
+    pk = msgpack.unpackb(c,raw=True)
     if wanted == pk[2]:
       return c
   return None
@@ -93,7 +93,7 @@ def validate_poison(name, value, pk):
   #
   if name is None or value is None:
     return True
-  poison = msgpack.unpackb(pk[1])
+  poison = msgpack.unpackb(pk[1],raw=True)
   for ku in poison:
     if ku[0] == name:
       if name != b'pathlen' and multimatch(value,ku[1]):
@@ -120,9 +120,9 @@ def intersect_certs(c1, c2, same_pk):
     pk.append(c2[0])
   else:
     pk.append(c1[0])
-  poisons = [[-1,msgpack.unpackb(c1[1])], [0,msgpack.unpackb(c2[1])]]
+  poisons = [[-1,msgpack.unpackb(c1[1],raw=True)], [0,msgpack.unpackb(c2[1],raw=True)]]
   if same_pk:
-    poisons = [[0,msgpack.unpackb(c1[1])], [0,msgpack.unpackb(c2[1])]]
+    poisons = [[0,msgpack.unpackb(c1[1],raw=True)], [0,msgpack.unpackb(c2[1],raw=True)]]
   poison_topics = None
   poison_usages = None
   pathlen = None
@@ -152,7 +152,7 @@ def intersect_certs(c1, c2, same_pk):
     poison.append([b'usages',poison_usages])
   if pathlen!=None:
     poison.append([b'pathlen',pathlen])
-  pk.append(msgpack.packb(poison))
+  pk.append(msgpack.packb(poison, use_bin_type=True))
   # Copy entries 2-infinity
   pk = pk + c2[2:]
   return pk
@@ -187,7 +187,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   for rot in allowlist:
     try:
       denylisted = False
-      val = [rot] + msgpack.unpackb(chain)
+      val = [rot] + msgpack.unpackb(chain,raw=True)
       if len(val) < 2:
         # must be validating at least one chain item beyond the item from the allowlist
         raise ValueError("Chain too short!")
@@ -201,13 +201,13 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
           elif key_in_list(pk[2],allowlist)!=None:
             # allowlisted subkey overrides denylist
             denylisted = False
-            pk = intersect_certs(pk,msgpack.unpackb(key_in_list(pk[2],allowlist)),True)
+            pk = intersect_certs(pk,msgpack.unpackb(key_in_list(pk[2],allowlist),raw=True),True)
           try:
-            pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(npk,pk[2])),False)
+            pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(npk,pk[2]),raw=True),False)
           except:
             raise ValueError("Invalid signing!")
         else:
-          pk = msgpack.unpackb(npk) # root is unsigned
+          pk = msgpack.unpackb(npk,raw=True) # root is unsigned
       # must finally check if leaf key is in allowlist/denylist
       if key_in_list(pk[2],allowlist)!=None:
         denylisted = False
@@ -231,11 +231,11 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   # We allow a key to self-sign itself to be denylisted. This enables any private
   # key to denylist itself
   try:
-    chain = msgpack.unpackb(chain)
+    chain = msgpack.unpackb(chain,raw=True)
     if len(chain) == 2:
-      pk = msgpack.unpackb(chain[0])
+      pk = msgpack.unpackb(chain[0],raw=True)
       pk0 = pk[2]
-      pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2])))
+      pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True))
       if pk0 == pk[2] and multimatch(usage, [b'key-denylist']) and validate_poison(b'usages',b'key-denylist',pk) and validate_poison(b'pathlen',0,pk):
         return pk
   except:

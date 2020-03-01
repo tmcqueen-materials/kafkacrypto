@@ -37,7 +37,7 @@ class CryptoKey(object):
     contents = None
     while len(data) and contents is None:
       try:
-        contents = msgpack.unpackb(data)
+        contents = msgpack.unpackb(data,raw=True)
       except msgpack.exceptions.ExtraData:
         data = data[:-1]
     if len(data) != datalen:
@@ -111,5 +111,5 @@ class CryptoKey(object):
     pk,sk = pysodium.crypto_sign_keypair()
     self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
     with open(file, "wb") as f:
-      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
+      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")

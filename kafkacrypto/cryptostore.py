@@ -165,7 +165,7 @@ class CryptoStore(object):
     self.store_value('test',None)
     self.store_value('MGMT_LONG_KEYINDEX',True)
     self._logger.warning("  Including a default/temporary root of trust. Once proper access is provisioned, this root of trust should be removed or distrusted.");
-    self.store_value('temporary',msgpack.packb([0,msgpack.packb([[b'pathlen',2]]),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')]), section='allowlist')
+    self.store_value('temporary',msgpack.packb([0,msgpack.packb([[b'pathlen',2]], use_bin_type=True),unhexlify(b'1a13b0aecdd6751c7dfa43e43284326ad01dbc20a8a00b1566092ab0a542620f')], use_bin_type=True), section='allowlist')
     self.store_value('test','test',section='denylist')
     self.store_value('test',None,section='denylist')
     self.store_value('test','test',section='crypto')

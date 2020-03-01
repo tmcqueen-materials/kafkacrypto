@@ -97,15 +97,15 @@ class KafkaCryptoChainServer(object):
       self._logger.info("Checking Key Lifetimes")
       chainkeys = self._cryptostore.load_section('chainkeys',defaults=False)
       for ck in chainkeys.keys():
-        cv = msgpack.unpackb(chainkeys[ck])
+        cv = msgpack.unpackb(chainkeys[ck],raw=True)
         self._logger.info("Checking Key: %s", cv[2])
         if cv[0]<time()+self._lifetime*self._refresh_fraction:
           try:
             # Time to renew this key
             self._logger.warning("Key expires soon, renewing %s", cv)
-            msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]])
+            msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]], use_bin_type=True)
             chain = self._cryptokey.sign_spk(msg)
-            chain = msgpack.packb(msgpack.unpackb(self._our_chain) + [chain])
+            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True) + [chain], use_bin_type=True)
             # Validate
             pk = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast

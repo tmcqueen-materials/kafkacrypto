@@ -111,7 +111,7 @@ class KafkaCrypto(KafkaCryptoBase):
 
     kvs = self._cryptostore.load_opaque_value('oldkeys',section="crypto")
     if not (kvs is None):
-      kvs = msgpack.unpackb(kvs)
+      kvs = msgpack.unpackb(kvs,raw=True)
       if 'pgens' in kvs.keys() or b'pgens' in kvs.keys():
         self._logger.info("Found pgens to load.")
         t = 'pgens'
@@ -153,7 +153,7 @@ class KafkaCrypto(KafkaCryptoBase):
             root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
             # A new receiver: send all requested keys
             try:
-              kreq = msgpack.unpackb(msg.key)
+              kreq = msgpack.unpackb(msg.key,raw=True)
               if root in self._pgens.keys():
                 ki = []
                 s = []
@@ -162,7 +162,7 @@ class KafkaCrypto(KafkaCryptoBase):
                     ki.append(ski)
                     s.append(sk['secret'])
                 if len(ki) > 0:
-                  k = msgpack.packb(ki)
+                  k = msgpack.packb(ki, use_bin_type=True)
                   v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
                   if not (v is None):
                     self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
@@ -256,7 +256,7 @@ class KafkaCrypto(KafkaCryptoBase):
           kis = list(self._cwaits[root].keys())
           if len(kis) > 0:
             if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
-              k = msgpack.packb(kis)
+              k = msgpack.packb(kis, use_bin_type=True)
               v = self._cryptoexchange.signed_epk(root)
               if not (k is None) and not (v is None):
                 self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
@@ -312,7 +312,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # stored pgens do not have generators as they should never be used for active production
             # (but secret stays around so lost consumers can catch up)
         self._logger.info("Saving %s old production keys.", len(kvs['pgens']))
-        self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs),section="crypto")
+        self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs, use_bin_type=True),section="crypto")
       self._lock.release()
   
       # Finally, loop back to poll again
@@ -355,7 +355,7 @@ class KafkaCrypto(KafkaCryptoBase):
         gen = pgen[self._kv]
         salt = gen.salt()
         key,nonce = gen.generate()
-        msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)])
+        msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)], use_bin_type=True)
       except Exception as e:
         self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
       finally:
@@ -378,7 +378,7 @@ class KafkaCrypto(KafkaCryptoBase):
       if len(bytes_) < 1 or bytes_[0] != 1:
         return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
       try:
-        msg = msgpack.unpackb(bytes_[1:])
+        msg = msgpack.unpackb(bytes_[1:],raw=True)
         if (len(msg) != 3):
           raise KafkaCryptoSerializeError("Malformed Message!")
       except Exception as e:

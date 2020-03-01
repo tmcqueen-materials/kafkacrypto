@@ -38,7 +38,7 @@ while len(password) < 12:
 rot = PasswordROT(password)
 
 _rot = rot._pk
-_msgrot = msgpack.packb([0,b'\x90',_rot])
+_msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
 
@@ -55,16 +55,16 @@ _signedprov = { 'producer': None,
           }
 for kn in _signedprov.keys():
   key=prov._pk[kn]
-  poison = msgpack.packb([[b'usages',_usages[kn]]])
-  tosign = msgpack.packb([0,poison,key])
+  poison = msgpack.packb([[b'usages',_usages[kn]]], use_bin_type=True)
+  tosign = msgpack.packb([0,poison,key], use_bin_type=True)
   _signedprov[kn] = pysodium.crypto_sign(tosign, rot._sk)
 
-_msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]]),
-               'consumer': msgpack.packb([_signedprov[_keys['consumer']]]),
-               'prodcon': msgpack.packb([_signedprov[_keys['prodcon']]]),
-               'prodcon-limited': msgpack.packb([_signedprov[_keys['prodcon-limited']]]),
-               'consumer-limited': msgpack.packb([_signedprov[_keys['consumer-limited']]]),
-               'controller': msgpack.packb([_signedprov[_keys['controller']]]),
+_msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]], use_bin_type=True),
+               'consumer': msgpack.packb([_signedprov[_keys['consumer']]], use_bin_type=True),
+               'prodcon': msgpack.packb([_signedprov[_keys['prodcon']]], use_bin_type=True),
+               'prodcon-limited': msgpack.packb([_signedprov[_keys['prodcon-limited']]], use_bin_type=True),
+               'consumer-limited': msgpack.packb([_signedprov[_keys['consumer-limited']]], use_bin_type=True),
+               'controller': msgpack.packb([_signedprov[_keys['controller']]], use_bin_type=True),
              }
 
 # Now do actual provisioning process
@@ -156,12 +156,12 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 # Generate KDF seed first, if needed
 if path.exists(nodeID + ".seed"):
   with open(nodeID + ".seed", "rb") as f:
-    idx,rb = msgpack.unpackb(f.read())
+    idx,rb = msgpack.unpackb(f.read(),raw=True)
 else:
   with open(nodeID + ".seed", "wb") as f:
     idx = 0
     rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-    f.write(msgpack.packb([idx,rb]))
+    f.write(msgpack.packb([idx,rb], use_bin_type=True))
 if (choice == 2 or choice == 4):
   print('There will be no escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data from this producer unless you store the following value in a secure location:')
   print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
@@ -169,22 +169,22 @@ if (choice == 2 or choice == 4):
 # Second, generate identify keypair and chain, and write cryptokey config file
 if path.exists(nodeID + ".crypto"):
   with open(nodeID + ".crypto", "rb") as f:
-    sk,_ = msgpack.unpackb(f.read())
+    sk,_ = msgpack.unpackb(f.read(),raw=True)
     pk = pysodium.crypto_sign_sk_to_pk(sk)
 else:
   pk,sk = pysodium.crypto_sign_keypair()
   with open(nodeID + ".crypto", "wb") as f:
-    f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)]))
+    f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
 
 poison = [[b'usages',_usages[key]]]
 if len(topics) > 0:
   poison.append([b'topics',topics])
 if pathlen != -1:
   poison.append([b'pathlen',pathlen])
-poison = msgpack.packb(poison)
+poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
-msg = pysodium.crypto_sign(msgpack.packb(msg), prov._sk[_keys[key]])
-chain = msgpack.packb(msgpack.unpackb(_msgchains[key]) + [msg])
+msg = pysodium.crypto_sign(msgpack.packb(msg, use_bin_type=True), prov._sk[_keys[key]])
+chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=True) + [msg], use_bin_type=True)
 print(nodeID, 'public key:', hexlify(pk))
 
 # Third, write config

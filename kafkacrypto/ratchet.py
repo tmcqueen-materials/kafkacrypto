@@ -37,7 +37,7 @@ class Ratchet(KeyGenerator):
 
   def increment(self):
     self.__file.seek(0,0)
-    contents = msgpack.unpackb(self.__file.read())
+    contents = msgpack.unpackb(self.__file.read(),raw=True)
     self.__keyidx = contents[0]
     self.rekey(contents[1])
     self.__file.seek(0,0)
@@ -50,7 +50,7 @@ class Ratchet(KeyGenerator):
     # a file I/O object, it should explicitly have atomic writes.
     # We do not use atomic write approaches based on renames due to the possibility of leaving
     # secret key material on disk if temporary files are not appropriately cleaned up.
-    self.__file.write(msgpack.packb([self.__keyidx+1,newkey]))
+    self.__file.write(msgpack.packb([self.__keyidx+1,newkey], use_bin_type=True))
     self.__file.flush()
     self.__file.seek(0,0)
 
@@ -78,7 +78,7 @@ class Ratchet(KeyGenerator):
     logger.warning("Initializing new Ratchet file %s", file)
     with open(file, "wb") as f:
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-      f.write(msgpack.packb([0,rb]))
+      f.write(msgpack.packb([0,rb], use_bin_type=True))
       _ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
       logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
       logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())
