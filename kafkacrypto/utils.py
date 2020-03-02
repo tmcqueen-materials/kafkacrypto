@@ -7,6 +7,24 @@ from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 
+def str_shim_eq(v, lit):
+  if isinstance(v,(bytes,bytearray)):
+    v = v.decode('utf-8')
+  if isinstance(lit,(bytes,bytearray)):
+    lit = lit.decode('utf-8')
+  if v == lit:
+    return True
+  return False
+
+def str_shim_ne(v, lit):
+  if isinstance(v,(bytes,bytearray)):
+    v = v.decode('utf-8')
+  if isinstance(lit,(bytes,bytearray)):
+    lit	= lit.decode('utf-8')
+  if v != lit:
+    return True
+  return False
+
 def str_decode(value, iskey=False):
   if value!=None:
     try:

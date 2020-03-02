@@ -59,20 +59,24 @@ class CryptoKey(object):
     #
     # returns the public key of a new ephemeral encryption key for the specified topic
     #
-    if (isinstance(topic,(str))):
-      topic = bytes(topic, 'utf-8')
-    if (isinstance(usage,(str))):
-      usage = bytes(usage, 'utf-8')
+    if (isinstance(topic,(bytes,bytearray))):
+      self._logger.debug("passed a topic in bytes (should be string)")
+      topic = topic.decode('utf-8')
+    if (isinstance(usage,(bytes,bytearray))):
+      self._logger.debug("passed a usage in bytes (should be string)")
+      usage = usage.decode('utf-8')
     with self.__eklock:
       self.__generate_esk(topic, usage)
       return self.__epk[topic][usage]
 
   def use_epk(self, topic, usage, pks, clear=True):
     rv = []
-    if (isinstance(topic,(str))):
-      topic = bytes(topic, 'utf-8')
-    if (isinstance(usage,(str))):
-      usage = bytes(usage, 'utf-8')
+    if (isinstance(topic,(bytes,bytearray))):
+      self._logger.debug("passed a topic in bytes (should be string)")
+      topic = topic.decode('utf-8')
+    if (isinstance(usage,(bytes,bytearray))):
+      self._logger.debug("passed a usage in bytes (should be string)")
+      usage = usage.decode('utf-8')
     with self.__eklock:
       if not topic in self.__esk or not usage in self.__esk[topic]:
         return rv

@@ -32,6 +32,8 @@ class FutureRecordMetadata(Future):
   def base_callback(self, err, msg):
     if err != None:
       self.failure(err)
+    elif msg is None:
+      self.failure('null msg')
     elif msg.error() != None:
       self.failure(msg.error())
     else:

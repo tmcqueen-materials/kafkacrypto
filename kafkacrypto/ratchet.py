@@ -52,13 +52,18 @@ class Ratchet(KeyGenerator):
     # secret key material on disk if temporary files are not appropriately cleaned up.
     self.__file.write(msgpack.packb([self.__keyidx+1,newkey], use_bin_type=True))
     self.__file.flush()
+    self.__file.truncate()
     self.__file.seek(0,0)
 
   def get_key_value_generators(self, topic, node=None):
     if (isinstance(topic,(str))):
       topic = bytes(topic, 'utf-8')
+    elif isinstance(topic, (bytes,bytearray)):
+      self._logger.debug('topic provided as bytes (should be string)')
+      # but we need it as bytes for pysodium
     if not (node is None) and isinstance(node,(str)):
       node = bytes(node, 'utf-8')
+      # node can be provided as bytes or string in proper usage
     # pysodium silently computes the hash of an empty string if input is not bytes, so check for
     # and catch that.
     if (not isinstance(topic, (bytes,bytearray))):
@@ -74,12 +79,11 @@ class Ratchet(KeyGenerator):
     return (ki, key, kg, vg)
 
   def __init_ratchet(self, file):
-    logger = logging.getLogger(__name__)
-    logger.warning("Initializing new Ratchet file %s", file)
+    self._logger.warning("Initializing new Ratchet file %s", file)
     with open(file, "wb") as f:
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
       f.write(msgpack.packb([0,rb], use_bin_type=True))
       _ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
-      logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
-      logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())
-    logger.warning("  Ratchet Initialized.")
+      self._logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
+      self._logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())
+    self._logger.warning("  Ratchet Initialized.")

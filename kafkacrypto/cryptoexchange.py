@@ -50,8 +50,9 @@ class CryptoExchange(object):
     self.__update_spk_chain(chain)
 
   def encrypt_keys(self, keyidxs, keys, topic, msgval=None):
-    if (isinstance(topic,(str))):
-      topic = bytes(topic, 'utf-8')
+    if (isinstance(topic,(bytes,bytearray))):
+      self._logger.debug("passed a topic in bytes (should be string)")
+      topic = topic.decode('utf-8')
     #
     # msgval should be a msgpacked chain.
     # The public key in the array is the public key to send the key to, using a
@@ -62,16 +63,16 @@ class CryptoExchange(object):
     #
     try:
       with self.__allowdenylist_lock:
-        pk = process_chain(msgval,topic,b'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk = process_chain(msgval,topic,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
-      epk = self.__cryptokey.get_epk(topic, b'encrypt_keys')
+      epk = self.__cryptokey.get_epk(topic, 'encrypt_keys')
       pks = [pk[2]]
-      eks = self.__cryptokey.use_epk(topic, b'encrypt_keys',pks)
+      eks = self.__cryptokey.use_epk(topic, 'encrypt_keys',pks)
       ek = eks[0]
       eks[0] = epk
       random0 = pk[3]
       random1 = pysodium.randombytes(self.__randombytes)
-      ss = pysodium.crypto_hash_sha256(topic + random0 + random1 + ek)[0:pysodium.crypto_secretbox_KEYBYTES]
+      ss = pysodium.crypto_hash_sha256(topic.encode('utf-8') + random0 + random1 + ek)[0:pysodium.crypto_secretbox_KEYBYTES]
       nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)
       # encrypt keys and key indexes (MAC appended, nonce prepended)
       msg = []
@@ -81,7 +82,7 @@ class CryptoExchange(object):
       msg = msgpack.packb(msg, use_bin_type=True)
       msg = nonce + pysodium.crypto_secretbox(msg,nonce,ss)
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
-      poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']]], use_bin_type=True)
+      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']]], use_bin_type=True)
       msg = msgpack.packb([time()+self.__maxage,poison,eks,[random0,random1],msg], use_bin_type=True)
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
@@ -89,7 +90,7 @@ class CryptoExchange(object):
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
         if (len(tchain) == 0):
-          poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt']],[b'pathlen',1]], use_bin_type=True)
+          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']],['pathlen',1]], use_bin_type=True)
           lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], use_bin_type=True)
           _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
           tchain.append(pysodium.crypto_sign(lastcert,tempsk))
@@ -103,8 +104,9 @@ class CryptoExchange(object):
     return msg
 
   def decrypt_keys(self, topic, msgval=None):
-    if (isinstance(topic,(str))):
-      topic = bytes(topic, 'utf-8')
+    if (isinstance(topic,(bytes,bytearray))):
+      self._logger.debug("passed a topic in bytes (should be string)")
+      topic = topic.decode('utf-8')
     #
     # msgval should be a msgpacked chain.
     # The public key in the array is a set of public key(s) to combine with our
@@ -115,17 +117,17 @@ class CryptoExchange(object):
     #
     try:
       with self.__allowdenylist_lock:
-        pk = process_chain(msgval,topic,b'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk = process_chain(msgval,topic,'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 5):
         raise ValueError
       random0 = pk[3][0]
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
       msg = pk[4][pysodium.crypto_secretbox_NONCEBYTES:]
-      eks = self.__cryptokey.use_epk(topic, b'decrypt_keys', pk[2], clear=False)
+      eks = self.__cryptokey.use_epk(topic, 'decrypt_keys', pk[2], clear=False)
       for ck in eks:
         # Construct candidate shared secrets as sha256(topic || random0 || random1 || our_private*their_public)
-        ss = pysodium.crypto_hash_sha256(topic + random0 + random1 + ck)[0:pysodium.crypto_secretbox_KEYBYTES]
+        ss = pysodium.crypto_hash_sha256(topic.encode('utf-8') + random0 + random1 + ck)[0:pysodium.crypto_secretbox_KEYBYTES]
         # decrypt and return key
         try:
           msg = msgpack.unpackb(pysodium.crypto_secretbox_open(msg,nonce,ss),raw=True)
@@ -138,7 +140,7 @@ class CryptoExchange(object):
           pass
         else:
           # clear the esk/epk we just used
-          self.__cryptokey.use_epk(topic, b'decrypt_keys', [])
+          self.__cryptokey.use_epk(topic, 'decrypt_keys', [])
           return rvs
       raise ValueError
     except Exception as e:
@@ -147,8 +149,9 @@ class CryptoExchange(object):
     return None
 
   def signed_epk(self, topic, epk=None):
-    if (isinstance(topic,(str))):
-      topic = bytes(topic, 'utf-8')
+    if (isinstance(topic,(bytes,bytearray))):
+      self._logger.debug("passed a topic in bytes (should be string)")
+      topic = topic.decode('utf-8')
     #
     # returns the public key of a current or given ephemeral key for the specified topic
     # (generating a new one if not present), signed by our signing key,
@@ -156,10 +159,10 @@ class CryptoExchange(object):
     #
     try:
       if epk is None:
-        epk = self.__cryptokey.get_epk(topic,b'decrypt_keys')
+        epk = self.__cryptokey.get_epk(topic,'decrypt_keys')
       random0 = pysodium.randombytes(self.__randombytes)
       # we allow either direct-to-producer or via-controller key establishment
-      poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt-request',b'key-encrypt-subscribe']]], use_bin_type=True)
+      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], use_bin_type=True)
       msg = msgpack.packb([time()+self.__maxage,poison,epk,random0], use_bin_type=True)
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
@@ -167,7 +170,7 @@ class CryptoExchange(object):
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
         if (len(tchain) == 0):
-          poison = msgpack.packb([[b'topics',[topic]],[b'usages',[b'key-encrypt-request',b'key-encrypt-subscribe']],[b'pathlen',1]], use_bin_type=True)
+          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], use_bin_type=True)
           lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], use_bin_type=True)
        	  _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
           tchain.append(pysodium.crypto_sign(lastcert,tempsk))
@@ -184,7 +187,7 @@ class CryptoExchange(object):
   def add_allowlist(self, allow):
     self.__allowdenylist_lock.acquire()
     try:
-      pk = process_chain(allow,None,b'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         if pk[2] != apk[2]:
@@ -206,7 +209,7 @@ class CryptoExchange(object):
   def add_denylist(self, deny):
     self.__allowdenylist_lock.acquire()
     try:
-      pk = process_chain(deny,None,b'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         if pk[2] != apk[2]:

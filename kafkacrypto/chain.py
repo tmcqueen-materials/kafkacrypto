@@ -3,6 +3,7 @@ import pysodium
 import msgpack
 import logging
 import re
+from kafkacrypto.utils import str_shim_eq, str_shim_ne
 
 def key_in_list(wanted, choices):
   # choices is an array of zero or more msgpacked arrays, each of
@@ -12,7 +13,7 @@ def key_in_list(wanted, choices):
   # Right now this has O(n) running time in the length of choices,
   # a future improvement is to make the average running time
   # much faster by building a set of the pk's before calling
-  # this function
+  # this function (scaling then is O(logn))
   if wanted is None or choices is None:
     return None
   for c in choices:
@@ -52,17 +53,17 @@ def multimatch(wanted, choices):
   if choices is None:
     return False
   for c in choices:
-    if len(wanted)<1 or (wanted[0] != b'^'[0] and wanted[0] != '^'):
+    if len(wanted)<1 or str_shim_ne(wanted[0:1],'^'):
       # wanted is a literal
-      if len(c) > 0 and (c[0] == b'^'[0] or c[0] == '^'):
+      if len(c) > 0 and str_shim_eq(c[0:1],'^'):
         r = re.compile(c)
         if r.match(wanted)!=None:
           return True
-      elif wanted == c:
+      elif str_shim_eq(wanted,c):
         return True
     else:
       # wanted is a regex
-      if wanted == c:
+      if str_shim_eq(wanted,c):
         return True
   # went through all possibilities, did not find it
   return False
@@ -95,14 +96,14 @@ def validate_poison(name, value, pk):
     return True
   poison = msgpack.unpackb(pk[1],raw=True)
   for ku in poison:
-    if ku[0] == name:
-      if name != b'pathlen' and multimatch(value,ku[1]):
+    if str_shim_eq(ku[0],name):
+      if str_shim_ne(name,'pathlen') and multimatch(value,ku[1]):
         return True
-      elif name == b'pathlen' and value<=ku[1]:
+      elif str_shim_eq(name,'pathlen') and value<=ku[1]:
         return True
       else:
         return False
-  if name == b'pathlen':
+  if str_shim_eq(name,'pathlen'):
     return True
   return False
 
@@ -131,14 +132,14 @@ def intersect_certs(c1, c2, same_pk):
     poison = p[1]
     new_pathlen = None
     for ku in poison:
-      if (ku[0] == b'topics'):
+      if str_shim_eq(ku[0],'topics'):
         poison_topics = intersect_multimatch(poison_topics, ku[1])
-      elif (ku[0] == b'usages'):
-        if (multimatch(b'key-allowlist',ku[1]) or multimatch(b'key-denylist',ku[1])) and new_pathlen is None:
+      elif str_shim_eq(ku[0],'usages'):
+        if (multimatch('key-allowlist',ku[1]) or multimatch('key-denylist',ku[1])) and new_pathlen is None:
           # enforce zero pathlength unless overridden in this poison array
           new_pathlen = 0
         poison_usages = intersect_multimatch(poison_usages, ku[1])
-      elif (ku[0] == b'pathlen'):
+      elif str_shim_eq(ku[0],'pathlen'):
         new_pathlen = ku[1]
       else:
         raise ValueError("Unknown chain signature poison")
@@ -147,11 +148,11 @@ def intersect_certs(c1, c2, same_pk):
   # Build new poison array
   poison = []
   if poison_topics!=None:
-    poison.append([b'topics',poison_topics])
+    poison.append(['topics',poison_topics])
   if poison_usages!=None:
-    poison.append([b'usages',poison_usages])
+    poison.append(['usages',poison_usages])
   if pathlen!=None:
-    poison.append([b'pathlen',pathlen])
+    poison.append(['pathlen',pathlen])
   pk.append(msgpack.packb(poison, use_bin_type=True))
   # Copy entries 2-infinity
   pk = pk + c2[2:]
@@ -219,11 +220,11 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
       # ensure composite chain is valid
       if (pk[0]<time() and pk[0]!=0):
         raise ValueError("Expired Chain!")
-      if not validate_poison(b'topics',topic,pk):
+      if not validate_poison('topics',topic,pk):
         raise ValueError("No matching topic in allowed intersection set.")
-      if not validate_poison(b'usages',usage,pk):
+      if not validate_poison('usages',usage,pk):
         raise ValueError("No matching usage in allowed intersection set.")
-      if not validate_poison(b'pathlen',0,pk):
+      if not validate_poison('pathlen',0,pk):
         raise ValueError("Exceeded allowed pathlen.")
       return pk
     except ValueError as e:
@@ -236,7 +237,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
       pk = msgpack.unpackb(chain[0],raw=True)
       pk0 = pk[2]
       pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True))
-      if pk0 == pk[2] and multimatch(usage, [b'key-denylist']) and validate_poison(b'usages',b'key-denylist',pk) and validate_poison(b'pathlen',0,pk):
+      if pk0 == pk[2] and multimatch(usage, ['key-denylist']) and validate_poison('usages','key-denylist',pk) and validate_poison('pathlen',0,pk):
         return pk
   except:
     pass

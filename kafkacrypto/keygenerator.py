@@ -1,5 +1,6 @@
 from kafkacrypto.exceptions import KafkaCryptoGeneratorError
 import pysodium
+import logging
 
 class KeyGenerator(object):
   """Class implementing a blake2b-based key/nonce generator
@@ -24,6 +25,7 @@ class KeyGenerator(object):
   #   __salt: Default salt, incremented after each invocation
   #
   def __init__(self, secret=b'\x00'*SECRETSIZE, ctx=b'generator'+(b'\x00'*7)):
+    self._logger = logging.getLogger(__name__)
     if (not isinstance(ctx, (bytes,bytearray))):
       raise KafkaCryptoGeneratorError("Context is not bytes!")
     self.__secret = None
@@ -39,6 +41,10 @@ class KeyGenerator(object):
   def generate(self,msg=MSG,ctx=None,salt=None,keysize=KEYSIZE,noncesize=NONCESIZE):
     # pysodium silently computes the hash of an empty string if input is not bytes, so check for
     # and catch that.
+    if isinstance(ctx, (str,)):
+      ctx = ctx.encode('utf-8')
+    if isinstance(salt, (str,)):
+      salt = salt.encode('utf-8')
     if (ctx is None or not isinstance(ctx,(bytes,bytearray))):
       ctx = self.__ctx
     if (salt is None or not isinstance(salt,(bytes,bytearray))):

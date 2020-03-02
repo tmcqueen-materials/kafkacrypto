@@ -87,8 +87,8 @@ class KafkaCryptoController(KafkaCryptoBase):
       # First, (Re)subscribe if needed
       if ((time()-self._last_subscribed_time) >= self.MGMT_SUBSCRIBE_INTERVAL):
         self._logger.debug("Initiating resubscribe...")
-        trx = "(.*\\" + self.TOPIC_SUFFIX_SUBS.decode('utf-8') + "$)"
-        self._kc.subscribe(topics=[self.MGMT_TOPIC_CHAINS.decode('utf-8'),self.MGMT_TOPIC_ALLOWLIST.decode('utf-8'),self.MGMT_TOPIC_DENYLIST.decode('utf-8')],pattern=trx)
+        trx = "(.*\\" + self.TOPIC_SUFFIX_SUBS + "$)"
+        self._kc.subscribe(topics=[self.MGMT_TOPIC_CHAINS,self.MGMT_TOPIC_ALLOWLIST,self.MGMT_TOPIC_DENYLIST],pattern=trx)
         self._last_subscribed_time = time()
         self._logger.info("Resubscribed to topics.")
 
@@ -104,8 +104,9 @@ class KafkaCryptoController(KafkaCryptoBase):
         for msg in msgset:
           self._logger.debug("Processing message: %s", msg)
           topic = msg.topic
-          if (isinstance(topic,(str,))):
-            topic = topic.encode('utf-8')
+          if (isinstance(topic,(bytes,bytearray))):
+            self._logger.debug("topic provided as bytes instead of string")
+            topic = topic.decode('utf-8')
           if topic[-len(self.TOPIC_SUFFIX_SUBS):] == self.TOPIC_SUFFIX_SUBS:
             root = topic[:-len(self.TOPIC_SUFFIX_SUBS)]
        	    self._logger.debug("Processing subscribe message, root=%s, msgkey=%s", root, msg.key)
@@ -114,7 +115,7 @@ class KafkaCryptoController(KafkaCryptoBase):
             # Valid request, resign and retransmit
             if (not (k is None)) or (not (v is None)):
               self._logger.info("Valid consumer key request on topic=%s, root=%s, msgkey=%s. Resending to topic=%s, msgkey=%s", topic, root, msg.key, root + self.TOPIC_SUFFIX_REQS, k)
-              self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
+              self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v)
             else:
               self._logger.info("Invalid consumer key request on topic=%s, root=%s in message: %s", topic, root, msg)
           elif topic == self.MGMT_TOPIC_CHAINS:

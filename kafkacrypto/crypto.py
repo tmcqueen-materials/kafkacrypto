@@ -105,7 +105,7 @@ class KafkaCrypto(KafkaCryptoBase):
 
     # Add management frame TPS
     for ntp in [self.MGMT_TOPIC_CHAINS, self.MGMT_TOPIC_ALLOWLIST, self.MGMT_TOPIC_DENYLIST]:
-      self._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
+      self._tps[ntp] = TopicPartition(ntp,0)
       self._tps_offsets[ntp] = 0
       self._tps_updated = True
 
@@ -118,6 +118,9 @@ class KafkaCrypto(KafkaCryptoBase):
         if not (t in kvs.keys()):
           t = b'pgens'
         for [root,ki,ks,b] in kvs[t]:
+          if isinstance(root,(bytes,bytearray)):
+            self._logger.debug("loaded a pgen root in bytes (should be string)")
+            root = root.decode('utf-8')
           self._logger.info("Attempting load of root=%s, ki=%s, b=%s at %s", root, ki, b, time())
           if time()-b < self.CRYPTO_MAX_PGEN_AGE:
             if not (root in self._pgens.keys()):
@@ -145,8 +148,9 @@ class KafkaCrypto(KafkaCryptoBase):
         self._lock.acquire()
         for msg in msgset:
           topic = msg.topic
-          if (isinstance(topic,(str,))):
-            topic = topic.encode('utf-8')
+          if (isinstance(topic,(bytes,bytearray))):
+            self._logger.debug("passed a topic in bytes (should be string)")
+            topic = topic.decode('utf-8')
           self._tps_offsets[topic] = msg.offset+1
           self._logger.debug("Processing message: %s", msg)
           if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
@@ -166,7 +170,7 @@ class KafkaCrypto(KafkaCryptoBase):
                   v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
                   if not (v is None):
                     self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
-                    self._kp.send((root + self.TOPIC_SUFFIX_KEYS).decode('utf-8'), key=k, value=v)
+                    self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
                   else:
                     self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
                 else:
@@ -260,10 +264,10 @@ class KafkaCrypto(KafkaCryptoBase):
               v = self._cryptoexchange.signed_epk(root)
               if not (k is None) and not (v is None):
                 self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
-                self._kp.send((root + self.TOPIC_SUFFIX_SUBS).decode('utf-8'), key=k, value=v)
+                self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v)
                 if not self._cryptoexchange.valid_spk_chain():
                   # if using default/temp ROT, send directly as well
-                  self._kp.send((root + self.TOPIC_SUFFIX_REQS).decode('utf-8'), key=k, value=v)
+                  self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v)
                 self._subs_last[root] = [time(),kis]
               else:
                 self._logger.info("Failed to send new subscribe request for root=%s", root)
@@ -328,8 +332,9 @@ class KafkaCrypto(KafkaCryptoBase):
       self._parent = parent
 
     def serialize(self, topic, value):
-      if (isinstance(topic,(str,))):
-        topic = topic.encode('utf-8')
+      if (isinstance(topic,(bytes,bytearray))):
+        self._parent._logger.debug("passed a topic in bytes (should be string)")
+        topic = topic.decode('utf-8')
       if value is None:
         return None
       if (isinstance(value,(KafkaCryptoMessage,))):
@@ -370,8 +375,9 @@ class KafkaCrypto(KafkaCryptoBase):
       self.WAIT_INTERVAL = key_wait_interval
 
     def deserialize(self, topic, bytes_):
-      if (isinstance(topic,(str,))):
-        topic = topic.encode('utf-8')
+      if (isinstance(topic,(bytes,bytearray))):
+        self._parent._logger.debug("passed a topic in bytes (should be string)")
+        topic = topic.decode('utf-8')
       if bytes_ is None:
         return None
       root = self._parent.get_root(topic)
@@ -408,7 +414,7 @@ class KafkaCrypto(KafkaCryptoBase):
             i = self.MAX_WAIT_INTERVALS
        	  ntp =	(root+self._parent.TOPIC_SUFFIX_KEYS)
        	  if not (ntp in self._parent._tps):
-       	    self._parent._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
+       	    self._parent._tps[ntp] = TopicPartition(ntp,0)
             self._parent._tps_offsets[ntp] = 0
             self._parent._tps_updated = True
           else:
@@ -441,6 +447,9 @@ class KafkaCrypto(KafkaCryptoBase):
     return self.Deserializer(self,'value',max_key_wait_intervals,key_wait_interval)
 
   def get_producer(self,root):
+    if isinstance(root,(bytes,bytearray)):
+      self._logger.debug("passed a root in bytes (should be string)")
+      root = root.decode('utf-8')
     if (self.MGMT_LONG_KEYINDEX == True):
       ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_spk())
     else:
@@ -460,7 +469,7 @@ class KafkaCrypto(KafkaCryptoBase):
       self._pgens[root][ki]['birth'] = time()
       ntp = (root+self.TOPIC_SUFFIX_REQS)
       if not (ntp in self._tps):
-        self._tps[ntp] = TopicPartition(ntp.decode('utf-8'),0)
+        self._tps[ntp] = TopicPartition(ntp,0)
         self._tps_offsets[ntp] = 0
         self._tps_updated = True
       self._logger.info("Got new producer key for root=%s. New key index=%s", root, ki)

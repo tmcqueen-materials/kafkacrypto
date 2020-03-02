@@ -45,16 +45,16 @@ class KafkaCryptoBase(object):
   #
   # Global configuration defaults
   #
-  DEFAULTS = { 'TOPIC_SEPARATOR': b'.',        # separator of topic name components, used to find root name and subs/keys
-               'TOPIC_SUFFIX_SUBS': b'.subs',  # suffixes should begin with separator or things will not work!
-               'TOPIC_SUFFIX_KEYS': b'.keys',
-               'TOPIC_SUFFIX_REQS': b'.reqs',
+  DEFAULTS = { 'TOPIC_SEPARATOR': '.',        # separator of topic name components, used to find root name and subs/keys
+               'TOPIC_SUFFIX_SUBS': '.subs',  # suffixes should begin with separator or things will not work!
+               'TOPIC_SUFFIX_KEYS': '.keys',
+               'TOPIC_SUFFIX_REQS': '.reqs',
                'CRYPTO_MAX_PGEN_AGE': 604800,  # in s
                'CRYPTO_SUB_INTERVAL': 60,      # in s
                'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
-               'MGMT_TOPIC_CHAINS': b'chains',
-               'MGMT_TOPIC_ALLOWLIST': b'allowlist',
-               'MGMT_TOPIC_DENYLIST': b'denylist',
+               'MGMT_TOPIC_CHAINS': 'chains',
+               'MGMT_TOPIC_ALLOWLIST': 'allowlist',
+               'MGMT_TOPIC_DENYLIST': 'denylist',
                'MGMT_POLL_INTERVAL': 500,      # in ms
                'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
@@ -90,7 +90,7 @@ class KafkaCryptoBase(object):
       if cryptokey!=None and cryptokey.startswith('file#'):
         cryptokey = cryptokey[5:]
       if (cryptokey is None):
-        cryptokey = nodeID + ".crypto"
+        cryptokey = nodeID + '.crypto'
         self._cryptostore.store_value('cryptokey', 'file#' + cryptokey)
     if (isinstance(cryptokey,(str))):
       cryptokey = CryptoKey(file=cryptokey)
@@ -105,12 +105,12 @@ class KafkaCryptoBase(object):
     rot = self._cryptostore.load_value('rot',section="crypto")
     if rot!=None:
       self._cryptostore.store_value('rot',rot,section='allowlist')
-      self._cryptostore.store_value('rot',None,section="crypto")
-    chainrot = self._cryptostore.load_value('chainrot',section="crypto")
+      self._cryptostore.store_value('rot',None,section='crypto')
+    chainrot = self._cryptostore.load_value('chainrot',section='crypto')
     if chainrot!=None:
       if rot != chainrot:
         self._cryptostore.store_value('chainrot',chainrot,section='allowlist')
-      self._cryptostore.store_value('chainrot',None,section="crypto")
+      self._cryptostore.store_value('chainrot',None,section='crypto')
 
     allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (allowlist is None):
@@ -118,8 +118,8 @@ class KafkaCryptoBase(object):
     denylist = self._cryptostore.load_section('denylist',defaults=False)
     if not (denylist is None):
       denylist = denylist.values()
-    self._cryptoexchange = CryptoExchange(self._cryptostore.load_value('chain',section="crypto"),self._cryptokey,
-                           maxage=self._cryptostore.load_value('maxage',section="crypto"),allowlist=allowlist,denylist=denylist)
+    self._cryptoexchange = CryptoExchange(self._cryptostore.load_value('chain',section='crypto'),self._cryptokey,
+                           maxage=self._cryptostore.load_value('maxage',section='crypto'),allowlist=allowlist,denylist=denylist)
 
     self._nodeID = nodeID
     self._lock = Lock()
@@ -131,18 +131,23 @@ class KafkaCryptoBase(object):
       v = self.DEFAULTS[k]
       v2 = self._cryptostore.load_value(k)
       self._logger.info("Loading config: %s,%s,%s",k,v,v2)
+      if isinstance(v2, (bytes,bytearray)):
+        v2s = v2.decode('utf-8')
+        self._logger.warning("Migrating config from bytes to str: %s,%s,%s->%s",k,v,v2,v2s)
+        v2 = v2s
       setattr(self, k, v2 if v2!=None else v)
 
   def get_root(self,topic):
-    wasstr = False
-    if isinstance(topic,(str)):
-      wasstr = True
-      topic = topic.encode('utf-8')
-    root = topic.index(self.TOPIC_SEPARATOR)
+    wasbytes = False
+    if isinstance(topic,(bytes,bytearray)):
+      self._logger.debug("get_root called with topic as bytes (should be string)")
+      wasbytes = True
+      topic = topic.decode('utf-8')
+    root = topic.find(self.TOPIC_SEPARATOR)
     if (root != -1):
       root = topic[0:root]
     else:
       root = topic
-    if wasstr:
-      root = root.decode('utf-8')
+    if wasbytes:
+      root = root.encode('utf-8')
     return root

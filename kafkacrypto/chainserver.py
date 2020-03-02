@@ -75,7 +75,7 @@ class KafkaCryptoChainServer(object):
     self._refresh_fraction = self._cryptostore.load_value('refresh_fraction', default=0.143)
 
     # Load our signing key and trimmings
-    self._our_chain = self._cryptostore.load_value('chain',section="crypto")
+    self._our_chain = self._cryptostore.load_value('chain',section='crypto')
     self._allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (self._allowlist is None):
       self._allowlist = self._allowlist.values()
