@@ -76,6 +76,11 @@ class KafkaCryptoChainServer(object):
 
     # Load our signing key and trimmings
     self._our_chain = self._cryptostore.load_value('chain',section='crypto')
+    try:
+      msgpack.unpackb(self._our_chain, raw=False)
+    except:
+      self._logger.warning("Chain server chain is in legacy format. This should be corrected.")
+      self._our_chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True),use_bin_type=True)
     self._allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (self._allowlist is None):
       self._allowlist = self._allowlist.values()
@@ -105,7 +110,7 @@ class KafkaCryptoChainServer(object):
             self._logger.warning("Key expires soon, renewing %s", cv)
             msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]], use_bin_type=True)
             chain = self._cryptokey.sign_spk(msg)
-            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True) + [chain], use_bin_type=True)
+            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=False) + [chain], use_bin_type=True)
             # Validate
             pk = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast

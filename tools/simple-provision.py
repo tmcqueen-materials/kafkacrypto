@@ -16,12 +16,12 @@ from kafkacrypto import KafkaCryptoStore
 #
 
 _lifetime = 316224000 # lifetime (10 years)
-_usages = {  'producer': [b'key-encrypt'],
-             'consumer': [b'key-encrypt-request',b'key-encrypt-subscribe'],
-             'prodcon': [b'key-encrypt',b'key-encrypt-request',b'key-encrypt-subscribe'],
-             'prodcon-limited': [b'key-encrypt',b'key-encrypt-subscribe'],
-             'consumer-limited': [b'key-encrypt-subscribe'],
-             'controller': [b'key-encrypt-request'],
+_usages = {  'producer': ['key-encrypt'],
+             'consumer': ['key-encrypt-request','key-encrypt-subscribe'],
+             'prodcon': ['key-encrypt','key-encrypt-request','key-encrypt-subscribe'],
+             'prodcon-limited': ['key-encrypt','key-encrypt-subscribe'],
+             'consumer-limited': ['key-encrypt-subscribe'],
+             'controller': ['key-encrypt-request'],
              }
 _keys = {    'producer': 'producer',
              'consumer': 'consumer',
@@ -55,7 +55,7 @@ _signedprov = { 'producer': None,
           }
 for kn in _signedprov.keys():
   key=prov._pk[kn]
-  poison = msgpack.packb([[b'usages',_usages[kn]]], use_bin_type=True)
+  poison = msgpack.packb([['usages',_usages[kn]]], use_bin_type=True)
   tosign = msgpack.packb([0,poison,key], use_bin_type=True)
   _signedprov[kn] = pysodium.crypto_sign(tosign, rot._sk)
 
@@ -123,13 +123,13 @@ assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' 
 topics = None
 while topics is None:
   topic = input('Enter a space separated list of topics this ' + key + ' will use: ')
-  topics = list(set(map(lambda i: i.split('.',1)[0].encode('utf-8'), topic.split())))
+  topics = list(set(map(lambda i: i.split('.',1)[0], topic.split())))
   if (len(topics) < 1):
     ans = input('Are you sure you want to allow all topics (Y/n)?')
     if (ans[0].lower() == 'n'):
       topics = None
     else:
-      topics = [b'^.*$']
+      topics = ['^.*$']
 
 pathlen = ''
 pathlen = input('Enter a maximum pathlength (-1 for no limit; default 1):')
@@ -155,8 +155,12 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 
 # Generate KDF seed first, if needed
 if path.exists(nodeID + ".seed"):
-  with open(nodeID + ".seed", "rb") as f:
+  with open(nodeID + ".seed", "rb+") as f:
     idx,rb = msgpack.unpackb(f.read(),raw=True)
+    f.seek(0,0)
+    f.write(msgpack.packb([idx,rb], use_bin_type=True))
+    f.flush()
+    f.truncate()
 else:
   with open(nodeID + ".seed", "wb") as f:
     idx = 0
@@ -168,23 +172,27 @@ if (choice == 2 or choice == 4):
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 if path.exists(nodeID + ".crypto"):
-  with open(nodeID + ".crypto", "rb") as f:
-    sk,_ = msgpack.unpackb(f.read(),raw=True)
+  with open(nodeID + ".crypto", "rb+") as f:
+    sk,rb = msgpack.unpackb(f.read(),raw=True)
     pk = pysodium.crypto_sign_sk_to_pk(sk)
+    f.seek(0,0)
+    f.write(msgpack.packb([sk,rb], use_bin_type=True))
+    f.flush()
+    f.truncate()
 else:
   pk,sk = pysodium.crypto_sign_keypair()
   with open(nodeID + ".crypto", "wb") as f:
     f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
 
-poison = [[b'usages',_usages[key]]]
+poison = [['usages',_usages[key]]]
 if len(topics) > 0:
-  poison.append([b'topics',topics])
+  poison.append(['topics',topics])
 if pathlen != -1:
-  poison.append([b'pathlen',pathlen])
+  poison.append(['pathlen',pathlen])
 poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
 msg = pysodium.crypto_sign(msgpack.packb(msg, use_bin_type=True), prov._sk[_keys[key]])
-chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=True) + [msg], use_bin_type=True)
+chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], use_bin_type=True)
 print(nodeID, 'public key:', hexlify(pk))
 
 # Third, write config

@@ -48,11 +48,13 @@ def multimatch(wanted, choices):
   # that multimatch is, in some cases, more restrictive than
   # strictly necessary, but this is better than being less
   # restrictive (which is a security hazard).
-  if wanted is None:
+  if wanted is None or str_shim_eq(wanted, '^.*$'): # a regex matching all, matches all regexes/literals
     return True
   if choices is None:
     return False
   for c in choices:
+    if str_shim_eq(c, '^.*$'): # a regex matching all, matches all regexes/literals
+      return True
     if len(wanted)<1 or str_shim_ne(wanted[0:1],'^'):
       # wanted is a literal
       if len(c) > 0 and str_shim_eq(c[0:1],'^'):
@@ -236,7 +238,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
     if len(chain) == 2:
       pk = msgpack.unpackb(chain[0],raw=True)
       pk0 = pk[2]
-      pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True))
+      pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True),False)
       if pk0 == pk[2] and multimatch(usage, ['key-denylist']) and validate_poison('usages','key-denylist',pk) and validate_poison('pathlen',0,pk):
         return pk
   except:

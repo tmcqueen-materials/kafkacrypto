@@ -15,16 +15,16 @@ from kafkacrypto import KafkaCryptoStore
 # Global configuration
 #
 
-_lifetime = 6048000 # lifetime (1 week)
+_lifetime = 604800 # lifetime (1 week)
 _lifetime_controller = 31622400 # controller lifetime (1 year)
 _ss0_escrow = unhexlify(b'escrow-key-here')
 _rot = unhexlify(b'79f5303a2e1c13fb5f5c3de392004694ae1d556c09dc0003b078136f805972a1')
 _msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
-_signedprov = {  'producer' : unhexlify(b'chain-here'),
-                 'consumer' : unhexlify(b'chain-here'),
-                  'prodcon' : unhexlify(b'chain-here'),
+_signedprov = { 'producer': unhexlify(b'XXX'),
+                'consumer': unhexlify(b'XXX'),
+                'prodcon': unhexlify(b'XXX'),
               }
 _keys =     {    'producer': 'producer',
                  'consumer': 'consumer',
@@ -38,15 +38,15 @@ _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]], use_b
                'prodcon': msgpack.packb([_signedprov[_keys['prodcon']]], use_bin_type=True),
                'prodcon-limited': msgpack.packb([_signedprov[_keys['prodcon-limited']]], use_bin_type=True),
                'consumer-limited': msgpack.packb([_signedprov[_keys['consumer-limited']]], use_bin_type=True),
-               'controller': msgpack.packb([_signedprov[_keys['controller']]]),
+               'controller': msgpack.packb([_signedprov[_keys['controller']]], use_bin_type=True),
              }
-_usages = {      'producer': [b'key-encrypt'],
-                 'consumer': [b'key-encrypt-request',b'key-encrypt-subscribe'],
-                 'prodcon': [b'key-encrypt',b'key-encrypt-request',b'key-encrypt-subscribe'],
-                 'prodcon-limited': [b'key-encrypt',b'key-encrypt-subscribe'],
-                 'consumer-limited': [b'key-encrypt-subscribe'],
-                 'controller': [b'key-encrypt-request'],
-                 'chain-server': [b'key-encrypt',b'key-encrypt-subscribe'],
+_usages = {      'producer': ['key-encrypt'],
+                 'consumer': ['key-encrypt-request','key-encrypt-subscribe'],
+                 'prodcon': ['key-encrypt','key-encrypt-request','key-encrypt-subscribe'],
+                 'prodcon-limited': ['key-encrypt','key-encrypt-subscribe'],
+                 'consumer-limited': ['key-encrypt-subscribe'],
+                 'controller': ['key-encrypt-request'],
+                 'chain-server': ['key-encrypt','key-encrypt-subscribe'],
                  }
 
 print('Beginning provisioning process. This should be run on the device being provisioned.')
@@ -116,13 +116,13 @@ if choice<5:
 topics = None
 while topics is None:
   topic = input('Enter a space separated list of topics this ' + key + ' will use: ')
-  topics = list(set(map(lambda i: i.split('.',1)[0].encode('utf-8'), topic.split())))
+  topics = list(set(map(lambda i: i.split('.',1)[0], topic.split())))
   if (len(topics) < 1):
     ans = input('Are you sure you want to allow all topics (y/N)?')
     if (len(ans) == 0 or ans[0].lower() != 'y'):
       topics = None
     else:
-      topics = [b'^.*$']
+      topics = ['^.*$']
 
 if choice<5:
   pathlen=1
@@ -156,8 +156,12 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 if choice<5:
 # Generate KDF seed first, if needed
   if path.exists(nodeID + ".seed"):
-    with open(nodeID + ".seed", "rb") as f:
-      idx,rb = msgpack.unpackb(f.read(),raw=True)
+    with open(nodeID + ".seed", "rb+") as f:
+      idx,rb = msgpack.unpackb(f.read(), raw=True)
+      f.seek(0,0)
+      f.write(msgpack.packb([idx,rb], use_bin_type=True))
+      f.flush()
+      f.truncate()
   else:
     with open(nodeID + ".seed", "wb") as f:
       idx = 0
@@ -173,24 +177,28 @@ if choice<5:
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 if path.exists(nodeID + ".crypto"):
-  with open(nodeID + ".crypto", "rb") as f:
-    sk,_ = msgpack.unpackb(f.read(),raw=True)
+  with open(nodeID + ".crypto", "rb+") as f:
+    sk,rb = msgpack.unpackb(f.read(), raw=True)
     pk = pysodium.crypto_sign_sk_to_pk(sk)
+    f.seek(0,0)
+    f.write(msgpack.packb([sk,rb], use_bin_type=True))
+    f.flush()
+    f.truncate()
 else:
   pk,sk = pysodium.crypto_sign_keypair()
   with open(nodeID + ".crypto", "wb") as f:
     f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
 
-poison = [[b'usages',_usages[key]]]
+poison = [['usages',_usages[key]]]
 if len(topics) > 0:
-  poison.append([b'topics',topics])
+  poison.append(['topics',topics])
 if pathlen != -1:
-  poison.append([b'pathlen',pathlen])
+  poison.append(['pathlen',pathlen])
 poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
 if choice<5:
   msg = pysodium.crypto_sign(msgpack.packb(msg, use_bin_type=True), prov._sk[_keys[key]])
-  chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=True) + [msg], use_bin_type=True)
+  chain = msgpack.packb(msgpack.unpackb(_msgchains[key], raw=False) + [msg], use_bin_type=True)
 else:
   print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg, use_bin_type=True)))
   msg = unhexlify(input('ROT Signed Value (hex):'))
