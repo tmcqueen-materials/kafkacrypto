@@ -37,7 +37,9 @@ def multimatch(wanted, choices):
   #  2. Wanted is a literal, and is matched by a regex in
   #     choices. [OR]
   #  3. Wanted is a regex, and exactly matches a regex in
-  #     choices.
+  #     choices. [OR]
+  #  4. Wanted is a regex, and choices as the "match everything"
+  #     regex ("^.*$") in it.
   # In particular, this means that regexs in choices are only
   # considered to match a regex wanted if the two (treated as
   # literals) exactly match. This is to ensure that wanted
@@ -48,7 +50,7 @@ def multimatch(wanted, choices):
   # that multimatch is, in some cases, more restrictive than
   # strictly necessary, but this is better than being less
   # restrictive (which is a security hazard).
-  if wanted is None or str_shim_eq(wanted, '^.*$'): # a regex matching all, matches all regexes/literals
+  if wanted is None:
     return True
   if choices is None:
     return False
