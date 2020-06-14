@@ -1,11 +1,25 @@
 import pysodium
 import msgpack
+from hashlib import sha256
 from os import replace, remove, fsync
 from shutil import copy, copymode
 from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
+
+# Useful for log rate limiting
+log_limited_map = {}
+def log_limited(logfunc, msg, *args, msg_id=None, limit_time=10, **kwargs):
+    global log_limited_map
+    if msg_id is None:
+        msgh = msg
+        if isinstance(msgh, (str,)):
+            msgh = msgh.encode('utf-8')
+        msg_id = sha256(msgh).digest()
+    if not (msg_id in log_limited_map) or log_limited_map[msg_id]+limit_time <= time():
+        log_limited_map[msg_id] = time()
+        logfunc(msg, *args, **kwargs)
 
 def str_shim_eq(v, lit):
   if isinstance(v,(bytes,bytearray)):

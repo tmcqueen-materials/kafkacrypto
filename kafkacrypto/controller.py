@@ -7,6 +7,7 @@ from kafkacrypto import TopicPartition
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoControllerError
 from kafkacrypto.provisioners import Provisioners
+from kafkacrypto.utils import log_limited
 
 class KafkaCryptoController(KafkaCryptoBase):
   """ A simple controller implementation, resigning requests for keys
@@ -141,7 +142,7 @@ class KafkaCryptoController(KafkaCryptoBase):
               self._cryptostore.store_value(c,deny,section='denylist')
           else:
             # unknown object
-            self._logger.warning("Unknown topic type in message: %s", msg)
+            log_limited(self._logger.warning, "Unknown topic type in message: %s", msg)
         self._lock.release()
 
       # Third, flush producer

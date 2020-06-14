@@ -12,6 +12,7 @@ from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError
 from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.keygenerator import KeyGenerator
+from kafkacrypto.utils import log_limited
 
 class KafkaCrypto(KafkaCryptoBase):
   """Class handling the sending and receiving of encrypted messages.
@@ -223,7 +224,7 @@ class KafkaCrypto(KafkaCryptoBase):
        	      self._cryptostore.store_value(c,deny,section='denylist')
           else:
             # unknown object
-            self._logger.warning("Unknown topic type in message: %s", msg)
+            log_limited(self._logger.warning, "Unknown topic type in message: %s", msg)
         self._lock.release()
   
       # Flush producer
