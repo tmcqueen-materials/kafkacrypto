@@ -181,7 +181,7 @@ def printable_cert(cert):
     rv.append("Key: " + cert[2].hex())
   except:
     rv.append("Key: " + str(cert[2]))
-    logging.warning("Funny key: "" + str(cert[2]))
+    logging.warning("Funny key: " + str(cert[2]))
   rv.append("Timestamp: " + str(cert[0]))
   rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
   return rv
