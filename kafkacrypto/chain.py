@@ -177,12 +177,13 @@ def printable_cert(cert):
   # Convert a certificate to a human-readable format
   #
   rv = []
-  if isinstance(cert[2],(str,)):
+  try:
     rv.append("Key: " + cert[2].hex())
-    rv.append("Timestamp: " + str(cert[0]))
-    rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
-  else:
-    rv.append("Could not process:" + str(cert))
+  except:
+    rv.append("Key: " + str(cert[2]))
+    logging.warning("Funny key: "" + str(cert[2]))
+  rv.append("Timestamp: " + str(cert[0]))
+  rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
   return rv
 
 def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
