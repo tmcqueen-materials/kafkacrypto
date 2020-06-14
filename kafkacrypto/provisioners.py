@@ -3,7 +3,7 @@ import traceback
 import pysodium
 import msgpack
 import logging
-from kafkacrypto.chain import process_chain
+from kafkacrypto.chain import process_chain, ProcessChainError
 
 class Provisioners(object):
   """Class validating key requests
@@ -28,11 +28,16 @@ class Provisioners(object):
     try:
       pk = None
       try:
-        pk = process_chain(msgval,topic,'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk,pkprint = process_chain(msgval,topic,'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
+      except ProcessChainError as pce:
+        raise pce
       except:
         pass
       if (pk is None):
-        raise ValueError("Request did not validate.")
+        if not (pkprint is None):
+          raise ProcessChainError("Request did not validate: ", pkprint)
+        else:
+          raise ValueError("Request did not validate!")
       msg = cryptoexchange.signed_epk(topic, epk=pk[2])
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))

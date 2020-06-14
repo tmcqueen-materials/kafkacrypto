@@ -5,6 +5,16 @@ import logging
 import re
 from kafkacrypto.utils import str_shim_eq, str_shim_ne
 
+class ProcessChainError(ValueError):
+  def __init__(self, message, printable):
+    super().__init__(message)
+    self.printable = printable
+  def __str__(self):
+    rv = super().__str__()
+    if not (self.printable) is None:
+      rv += " " + str(self.printable)
+    return rv
+
 def key_in_list(wanted, choices):
   # choices is an array of zero or more msgpacked arrays, each of
   # which has the format of a chain entry (see below). This helper
@@ -162,6 +172,16 @@ def intersect_certs(c1, c2, same_pk):
   pk = pk + c2[2:]
   return pk
 
+def printable_cert(cert):
+  #
+  # Convert a certificate to a human-readable format
+  #
+  rv = []
+  rv.append("Key: " + cert[2].hex())
+  rv.append("Timestamp: " + str(cert[0]))
+  rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
+  return rv
+
 def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   #
   # chain should be a single msgpack array, with the next item in the array
@@ -174,22 +194,28 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   # Possibly more items in (3)+, especially common for the final item,
   # but not needed to check the chain.
   #
-  # Returns a ValueError if chain does not match topic or usage criteria, or
+  # Raises a ValueError if chain does not match topic or usage criteria, or
   # uses a denylisted key, unless there is ultimately a chain between
   # an allowlisted key and the final item with no denylisted keys.
   # The final item might itself be the allowlisted key.
   #
-  # Otherwise, returns an array containing:
-  # (0) The minimum max_age timestamp
-  # (1) The intersection of allowed topics and usages, in the
-  #     poison array (i.e. the net allowed topics and usages)
-  # (2) The public key
-  # And any items in (3)+ from the final item.
+  # Otherwise, returns an array containing two arrays. The first array
+  #  contains:
+  #  (0) The minimum max_age timestamp
+  #  (1) The intersection of allowed topics and usages, in the
+  #      poison array (i.e. the net allowed topics and usages)
+  #  (2) The public key
+  #  And any items in (3)+ from the final item.
+  # The second array contains one entry per item in the chain, containing
+  # a textual / human readable description (useful for verbose messages) of
+  # how the item was interpreted.
   #
+  printable = []
   if allowlist is None:
-    raise ValueError("No possible roots of trust!")
-  last_error = ValueError("No roots of trust found!")
+    raise ProcessChainError("No possible roots of trust!", printable)
+  last_error = ProcessChainError("No roots of trust found!", printable)
   for rot in allowlist:
+    printable = []
     try:
       denylisted = False
       val = [rot] + msgpack.unpackb(chain,raw=True)
@@ -213,6 +239,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
             raise ValueError("Invalid signing!")
         else:
           pk = msgpack.unpackb(npk,raw=True) # root is unsigned
+      printable.append(str(printable_cert(pk)))
       # must finally check if leaf key is in allowlist/denylist
       if key_in_list(pk[2],allowlist)!=None:
         denylisted = False
@@ -230,9 +257,10 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
         raise ValueError("No matching usage in allowed intersection set.")
       if not validate_poison('pathlen',0,pk):
         raise ValueError("Exceeded allowed pathlen.")
-      return pk
+      return [pk,printable]
     except ValueError as e:
-      last_error = e
+      printable.append(str(e))
+      last_error = ProcessChainError("Error during Validation:", printable)
   # We allow a key to self-sign itself to be denylisted. This enables any private
   # key to denylist itself
   try:
@@ -242,7 +270,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
       pk0 = pk[2]
       pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True),False)
       if pk0 == pk[2] and multimatch(usage, ['key-denylist']) and validate_poison('usages','key-denylist',pk) and validate_poison('pathlen',0,pk):
-        return pk
+        return [pk,[str(printable_cert(pk))]]
   except:
     pass
   raise last_error

@@ -4,7 +4,7 @@ import traceback
 import pysodium
 import msgpack
 import logging
-from kafkacrypto.chain import process_chain, key_in_list
+from kafkacrypto.chain import process_chain, ProcessChainError, key_in_list
 from binascii import unhexlify
 
 class CryptoExchange(object):
@@ -63,7 +63,7 @@ class CryptoExchange(object):
     #
     try:
       with self.__allowdenylist_lock:
-        pk = process_chain(msgval,topic,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk,_ = process_chain(msgval,topic,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
       epk = self.__cryptokey.get_epk(topic, 'encrypt_keys')
       pks = [pk[2]]
@@ -117,9 +117,12 @@ class CryptoExchange(object):
     #
     try:
       with self.__allowdenylist_lock:
-        pk = process_chain(msgval,topic,'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk,pkprint = process_chain(msgval,topic,'key-encrypt',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 5):
-        raise ValueError
+        if not (pkprint is None):
+          raise ProcessChainError("Unexpected number of chain elements:", pkprint)
+        else:
+          raise ValueError("Unexpected number of chain elements!")
       random0 = pk[3][0]
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
@@ -187,7 +190,7 @@ class CryptoExchange(object):
   def add_allowlist(self, allow):
     self.__allowdenylist_lock.acquire()
     try:
-      pk = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk,_ = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         if pk[2] != apk[2]:
@@ -209,7 +212,7 @@ class CryptoExchange(object):
   def add_denylist(self, deny):
     self.__allowdenylist_lock.acquire()
     try:
-      pk = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk,_ = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         if pk[2] != apk[2]:
@@ -249,9 +252,12 @@ class CryptoExchange(object):
       return None
     try:
       with self.__allowdenylist_lock:
-        pk = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)
+        pk,pkprint = process_chain(newchain,None,None,allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) < 3 or pk[2] != self.__cryptokey.get_spk()):
-        raise ValueError("New chain does not match current signing public key,")
+        if not (pkprint is None):
+          raise ProcessChainError("New chain does not match current signing publickey:", pkprint)
+        else:
+          raise ValueError("New chain does not match current signing public key,")
       # If we get here, it is a valid chain. So now we need
       # to see if it is "superior" than our current chain.
       # This means a larger minimum max_age.

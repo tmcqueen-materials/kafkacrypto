@@ -86,9 +86,9 @@ class KafkaCryptoChainServer(object):
       self._allowlist = self._allowlist.values()
 
     # Validate
-    pk = process_chain(self._our_chain,None,None,allowlist=self._allowlist)
+    pk,pkprint = process_chain(self._our_chain,None,None,allowlist=self._allowlist)
     if (pk[2] != self._cryptokey.get_spk()):
-      raise KafkaCryptoChainServerError("Chain does not match public key!")
+      raise KafkaCryptoChainServerError("Chain does not match public key: " + str(pkprint))
 
     # Connect to Kafka
     self._producer = KafkaProducer(**self._cryptostore.get_kafka_config('producer'))
@@ -112,7 +112,7 @@ class KafkaCryptoChainServer(object):
             chain = self._cryptokey.sign_spk(msg)
             chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=False) + [chain], use_bin_type=True)
             # Validate
-            pk = process_chain(chain,None,None,allowlist=self._allowlist)
+            pk,_ = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast
             self._producer.send('chains',key=cv[2],value=chain)
             self._producer.flush()
