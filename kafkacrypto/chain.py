@@ -178,12 +178,16 @@ def printable_cert(cert):
   #
   rv = []
   try:
-    rv.append("Key: " + cert[2].hex())
+    if isinstance(cert[2],(list,tuple)):
+      for key in cert[2]:
+        rv.append("Key: " + key.hex())
+    else:
+      rv.append("Key: " + cert[2].hex())
+    rv.append("Timestamp: " + str(cert[0]))
+    rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
   except:
-    rv.append("Key: " + str(cert[2]))
-    logging.warning("Funny key: " + str(cert[2]))
-  rv.append("Timestamp: " + str(cert[0]))
-  rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
+    rv.append("Could not parse!")
+    rv.append(str(cert))
   return rv
 
 def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
