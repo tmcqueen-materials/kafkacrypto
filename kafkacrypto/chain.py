@@ -177,9 +177,12 @@ def printable_cert(cert):
   # Convert a certificate to a human-readable format
   #
   rv = []
-  rv.append("Key: " + cert[2].hex())
-  rv.append("Timestamp: " + str(cert[0]))
-  rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
+  if isinstance(cert[2],(str,)):
+    rv.append("Key: " + cert[2].hex())
+    rv.append("Timestamp: " + str(cert[0]))
+    rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
+  else:
+    rv.append("Could not process:" + str(cert))
   return rv
 
 def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
@@ -239,7 +242,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
             raise ValueError("Invalid signing!")
         else:
           pk = msgpack.unpackb(npk,raw=True) # root is unsigned
-      printable.append(str(printable_cert(pk)))
+        printable.append(str(printable_cert(pk)))
       # must finally check if leaf key is in allowlist/denylist
       if key_in_list(pk[2],allowlist)!=None:
         denylisted = False
