@@ -267,8 +267,9 @@ class CryptoExchange(object):
           if (min_max_age == 0 or cpk[0]<min_max_age):
             min_max_age = cpk[0]
         if (pk[0] < min_max_age):
-          raise ValueError("New chain has shorter expiry time than current chain.")
+          raise ProcessChainError("New chain has shorter expiry time than current chain.", pkprint)
         self.__spk_chain = msgpack.unpackb(newchain,raw=True)
+        self._logger.warning("Utilizing new chain: %s", str(pkprint))
         return newchain
     except Exception as e:
       self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
