@@ -110,7 +110,7 @@ if choice<5:
     # Everyone else by the Chain ROT (may = ROT)
     _msgchkrot = _msgchainrot
   assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
-  pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])
+  pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])[0]
   assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
 
 topics = None
@@ -203,7 +203,7 @@ else:
   print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg, use_bin_type=True)))
   msg = unhexlify(input('ROT Signed Value (hex):'))
   chain = msgpack.packb([msg], use_bin_type=True)
-  pk2 = process_chain(chain,None,None,allowlist=[_msgrot])
+  pk2 = process_chain(chain,None,None,allowlist=[_msgrot])[0]
   assert len(pk2) >= 3, "Malformed ROT Signed Value"
 print(nodeID, 'public key:', hexlify(pk))
 
