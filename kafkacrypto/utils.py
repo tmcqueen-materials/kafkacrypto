@@ -7,6 +7,17 @@ from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
+from traceback import format_exception
+
+# Shim for Python 3.10+ compatibility
+def format_exception_shim(etype=None, **kwargs):
+    try:
+        return format_exception(etype=etype, **kwargs)
+    except:
+        try:
+            return format_exception(exc=etype, **kwargs)
+        except:
+            return ["Could not format exception.\n"]
 
 # Useful for log rate limiting
 log_limited_map = {}

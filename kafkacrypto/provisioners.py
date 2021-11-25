@@ -1,5 +1,5 @@
 from time import time
-import traceback
+from kafkacrypto.utils import format_exception_shim
 import pysodium
 import msgpack
 import logging
@@ -40,6 +40,6 @@ class Provisioners(object):
           raise ValueError("Request did not validate!")
       msg = cryptoexchange.signed_epk(topic, epk=pk[2])
     except Exception as e:
-      self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
       return (None, None)
     return (msgkey, msg)

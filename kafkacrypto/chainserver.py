@@ -9,7 +9,7 @@ from kafkacrypto.cryptostore import CryptoStore
 import msgpack
 import inspect
 import logging
-import traceback
+from kafkacrypto.utils import format_exception_shim
 
 class KafkaCryptoChainServer(object):
   """ A simple chain server implementation, regularly producing new
@@ -119,6 +119,6 @@ class KafkaCryptoChainServer(object):
             # save
             self._cryptostore.store_value(ck,msg,section='chainkeys')
           except Exception as e:
-            self._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+            self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
       self._logger.info("Done Checking.")
       sleep(self._interval_secs)

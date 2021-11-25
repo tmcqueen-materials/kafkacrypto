@@ -1,6 +1,6 @@
 from threading import Thread
 import inspect
-import traceback
+from kafkacrypto.utils import format_exception_shim
 import pysodium
 from time import time,sleep
 import msgpack
@@ -177,7 +177,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 else:
                   self._logger.info("No keys for root=%s to send to new receiver.", root)
             except Exception as e:
-              self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+              self._parent._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
@@ -363,7 +363,7 @@ class KafkaCrypto(KafkaCryptoBase):
         key,nonce = gen.generate()
         msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)], use_bin_type=True)
       except Exception as e:
-        self._parent._logger.warning("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+        self._parent._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
       finally:
         self._parent._lock.release()
       return msg
@@ -389,7 +389,7 @@ class KafkaCrypto(KafkaCryptoBase):
         if (len(msg) != 3):
           raise KafkaCryptoSerializeError("Malformed Message!")
       except Exception as e:
-        self._parent._logger.debug("".join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+        self._parent._logger.debug("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
         return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
       ki = msg[0]
       salt = msg[1]

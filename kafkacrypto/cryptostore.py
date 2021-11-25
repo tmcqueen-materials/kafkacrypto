@@ -3,7 +3,6 @@ from threading import Lock
 from configparser import ConfigParser
 from os import path
 from binascii import unhexlify
-import traceback
 import pysodium
 import msgpack
 import logging
