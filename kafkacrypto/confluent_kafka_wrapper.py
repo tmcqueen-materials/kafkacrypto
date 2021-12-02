@@ -182,7 +182,9 @@ class KafkaConsumer(Consumer):
 
   def poll(self, timeout_ms=0, max_records=None):
     rvm = {}
-    msgs = super().consume(self.config['max_poll_records'],timeout_ms/1000.0)
+    if (max_records is None) or max_records <= 0 or max_records > self.config['max_poll_records']:
+      max_records = self.config['max_poll_records']
+    msgs = super().consume(max_records,timeout_ms/1000.0)
     for msg in msgs:
       if not (msg is None) and msg.error() is None:
         rvk = TopicPartition(msg.topic(),msg.partition())
