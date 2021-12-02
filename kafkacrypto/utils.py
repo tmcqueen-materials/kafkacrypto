@@ -10,13 +10,16 @@ from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
 
 # Shim for Python 3.10+ compatibility
-def format_exception_shim(etype=None, **kwargs):
+def format_exception_shim(exc=None, **kwargs):
     try:
-        return format_exception(etype=etype, **kwargs)
+        # Python < 3.10
+        return format_exception(etype=type(exc), value=exc, tb=exc.__traceback__, **kwargs)
     except:
         try:
-            return format_exception(exc=etype, **kwargs)
+            # Python >= 3.10
+            return format_exception(exc, **kwargs)
         except:
+            # Catch any errors to avoid management thread dying
             return ["Could not format exception.\n"]
 
 # Useful for log rate limiting

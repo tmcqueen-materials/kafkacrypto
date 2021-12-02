@@ -40,6 +40,6 @@ class Provisioners(object):
           raise ValueError("Request did not validate!")
       msg = cryptoexchange.signed_epk(topic, epk=pk[2])
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       return (None, None)
     return (msgkey, msg)

@@ -119,6 +119,6 @@ class KafkaCryptoChainServer(object):
             # save
             self._cryptostore.store_value(ck,msg,section='chainkeys')
           except Exception as e:
-            self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+            self._logger.warning("".join(format_exception_shim(e)))
       self._logger.info("Done Checking.")
       sleep(self._interval_secs)

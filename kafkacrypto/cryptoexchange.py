@@ -99,7 +99,7 @@ class CryptoExchange(object):
       tchain.append(msg)
       msg = msgpack.packb(tchain, use_bin_type=True)
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       return None
     return msg
 
@@ -147,7 +147,7 @@ class CryptoExchange(object):
           return rvs
       raise ValueError
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       pass
     return None
 
@@ -183,7 +183,7 @@ class CryptoExchange(object):
       msg = msgpack.packb(tchain, use_bin_type=True)
       return msg
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       pass
     return None
 
@@ -204,7 +204,7 @@ class CryptoExchange(object):
         self._logger.warning("Added key %s to allowlist",pk[2].hex())
         return pk[3]
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       return None
     finally:
       self.__allowdenylist_lock.release()
@@ -226,7 +226,7 @@ class CryptoExchange(object):
         self._logger.warning("Added key %s to denylist",pk[2].hex())
        	return pk[3]
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       return None
     finally:
       self.__allowdenylist_lock.release()
@@ -272,5 +272,5 @@ class CryptoExchange(object):
         self._logger.warning("Utilizing new chain: %s", str(pkprint))
         return newchain
     except Exception as e:
-      self._logger.warning("".join(format_exception_shim(etype=type(e), value=e, tb=e.__traceback__)))
+      self._logger.warning("".join(format_exception_shim(e)))
       return None
