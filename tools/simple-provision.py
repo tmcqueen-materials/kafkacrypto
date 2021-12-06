@@ -126,7 +126,7 @@ while topics is None:
   topics = list(set(map(lambda i: i.split('.',1)[0], topic.split())))
   if (len(topics) < 1):
     ans = input('Are you sure you want to allow all topics (Y/n)?')
-    if (ans[0].lower() == 'n'):
+    if len(ans) > 0 and (ans[0].lower() == 'n'):
       topics = None
     else:
       topics = ['^.*$']
