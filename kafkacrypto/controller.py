@@ -146,12 +146,12 @@ class KafkaCryptoController(KafkaCryptoBase):
         self._lock.release()
 
       # Third, flush producer
-      self._kp.flush()
+      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
 
       # Fourth, commit offsets
       if (self._kc.config['group_id'] is not None):
         self._kc.commit()
-  
+
       # Finally, loop back to poll again
   # end of __process_mgmt_messages
 

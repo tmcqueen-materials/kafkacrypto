@@ -228,7 +228,7 @@ class KafkaCrypto(KafkaCryptoBase):
         self._lock.release()
   
       # Flush producer
-      self._kp.flush()
+      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
 
       # Second, deal with subscription changes
       self._lock.acquire()
@@ -282,7 +282,7 @@ class KafkaCrypto(KafkaCryptoBase):
       self._lock.release()
 
       # Flush producer
-      self._kp.flush()
+      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
 
       # Fourth, periodically increment ratchet and prune old keys
       self._logger.debug("Checking ratchet time.")

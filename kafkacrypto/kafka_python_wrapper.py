@@ -31,3 +31,5 @@ class KafkaConsumer(Consumer):
 class KafkaProducer(Producer):
   def poll(self, timeout=0):
     pass
+  def flush(self, timeout=None, timeout_jiffy=None):
+    return super().flush(timeout=timeout)

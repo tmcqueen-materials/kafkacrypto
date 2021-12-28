@@ -312,7 +312,7 @@ class KafkaProducer(Producer):
         self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
 
-  def flush(self, timeout=None):
+  def flush(self, timeout=None, timeout_jiffy=0.1):
     # librdkafka 1.8.0 changed the behavior of flush() to ignore linger_ms and
     # immediately attempt to send messages. Unfortunately, that change added
     # a call to rd_kafka_all_brokers_wakeup , which seems to cause a hang of
@@ -321,15 +321,22 @@ class KafkaProducer(Producer):
     #
     # This eventually results in non-sensical exceptions being thrown. We
     # fix it here by implementing flush as sucessive polling directly.
+    #
+    # It is highly recommended this be used with a timeout, since otherwise
+    # with high message production rates and other poll-callers winning the
+    # race for calling callbacks, this will never complete.
+    #
     left = len(self)
-    jiffy = 0.1
+    initial = left
     if timeout is None:
       while left > 0:
-        con = self.poll(jiffy)
-        left = left - con
+        con = self.poll(timeout_jiffy)
+        initial -= con
+        left = min([len(self),initial])
     else:
       con = self.poll(timeout)
-      left = left - con
+      initial -= con
+      left = min([len(self),initial])
     return max([left,0])
 
   def poll(self, timeout=0):

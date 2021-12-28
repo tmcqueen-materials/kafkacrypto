@@ -55,6 +55,7 @@ class KafkaCryptoBase(object):
                'MGMT_TOPIC_CHAINS': 'chains',
                'MGMT_TOPIC_ALLOWLIST': 'allowlist',
                'MGMT_TOPIC_DENYLIST': 'denylist',
+               'MGMT_FLUSH_TIME': 2,           # in s
                'MGMT_POLL_INTERVAL': 500,      # in ms
                'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec

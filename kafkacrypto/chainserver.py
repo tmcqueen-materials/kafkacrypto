@@ -73,6 +73,7 @@ class KafkaCryptoChainServer(object):
     self._interval_secs = self._cryptostore.load_value('interval_secs', default=300)
     self._lifetime = self._cryptostore.load_value('lifetime', default=604800)
     self._refresh_fraction = self._cryptostore.load_value('refresh_fraction', default=0.143)
+    self._flush_time = self._cryptostore.load_value('flush_time', default=2.0)
 
     # Load our signing key and trimmings
     self._our_chain = self._cryptostore.load_value('chain',section='crypto')
@@ -115,7 +116,7 @@ class KafkaCryptoChainServer(object):
             pk,_ = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast
             self._producer.send('chains',key=cv[2],value=chain)
-            self._producer.flush()
+            self._producer.flush(timeout=self._flush_time)
             # save
             self._cryptostore.store_value(ck,msg,section='chainkeys')
           except Exception as e:
