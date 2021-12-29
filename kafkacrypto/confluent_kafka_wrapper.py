@@ -39,14 +39,20 @@ class FutureRecordMetadata(Future):
     else:
       # success
       metadata = RecordMetadata(msg.topic(), msg.partition(), TopicPartition(msg.topic(), msg.partition()),
-                                msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else int(time()*1000), 
+                                msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else int(time()*1000),
                                 None, self.key_len, self.value_len, -1)
       self.success(metadata)
 
-  def get(self, timeout=None, timeout_jiffy=0.1):
+  def get(self, timeout="default", timeout_jiffy=0.1):
+    # timeout = None is infinite timeout, for compatibility with kafka-python's FutureRecordMetadata
+    # timeout = "default" (or any non-number) should never be passed by callers, but is used here
+    #           to indicate use of configured default.
     if timeout is None:
       last_time = 9223372036854775807
       timeout = last_time-time()
+    elif timeout == "default":
+      timeout = self._producer.config['produce_timeout']
+      last_time = time()+timeout
     else:
       last_time = time()+timeout
     while not self.is_done and timeout>0:
@@ -102,9 +108,9 @@ class KafkaConsumer(Consumer):
                }
   CONFIG_MAP_LOCAL = { 'max_poll_records': 500,
                      }
-  CONFIG_MAP_NULL = [ 'ssl_context', 
-                      'socket_options', 
-                      'default_offset_commit_callback', 
+  CONFIG_MAP_NULL = [ 'ssl_context',
+                      'socket_options',
+                      'default_offset_commit_callback',
                       'consumer_timeout_ms',
                       'ssl_check_hostname',
                       'api_version',
@@ -274,6 +280,8 @@ class KafkaProducer(Producer):
                  'sasl_plain_password': 'sasl.password',
                  'sasl_kerberos_service_name': 'sasl.kerberos.service.name',
                }
+  CONFIG_MAP_LOCAL = { 'produce_timeout': 30, # in s
+                     }
   CONFIG_MAP_NULL = [ 'ssl_context',
                       'socket_options',
                       'batch_size',
@@ -298,7 +306,13 @@ class KafkaProducer(Producer):
     self.config = {}
     self.ks = lambda topic, _bytes: bytes(_bytes)
     self.vs = lambda topic, _bytes: bytes(_bytes)
+    for k in self.CONFIG_MAP_LOCAL.keys():
+      self.config[k] = self.CONFIG_MAP_LOCAL[k]
     for k in self.raw_config.keys():
+      # adjust default produce_timeout if not separately set, and
+      # other parameters are set that require it to adjust.
+      if (k in ['delivery.timeout.ms', 'message.timeout.ms', 'transaction.timeout.ms']) and ('produce_timeout' not in self.raw_config.keys()):
+        self.config['produce_timeout'] = self.raw_config[k]/1000.0
       if (k == 'key_serializer'):
         if not (self.raw_config[k] is None) and (not hasattr(self.raw_config[k], 'serialize') or not inspect.isroutine(self.raw_config[k].serialize)):
           self.ks = lambda topic, _bytes: self.raw_config[k](_bytes)
@@ -314,6 +328,8 @@ class KafkaProducer(Producer):
       elif (k in self.CONFIG_MAP.keys()):
         if not (self.raw_config[k] is None):
           self.cf_config[self.CONFIG_MAP[k]] = self.raw_config[k]
+      elif (k in self.CONFIG_MAP_LOCAL):
+        self.config[k] = self.raw_config[k]
       elif (k in self.CONFIG_MAP_NULL):
         self._log.warning("Warning: Unsupported kafka-python parameter passed to confluent wrapper: %s, %s", k, self.raw_config[k])
       else:
@@ -323,7 +339,7 @@ class KafkaProducer(Producer):
         self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
 
-  def flush(self, timeout=None, timeout_jiffy=0.1):
+  def flush(self, timeout="default", timeout_jiffy=0.1):
     # librdkafka 1.8.0 changed the behavior of flush() to ignore linger_ms and
     # immediately attempt to send messages. Unfortunately, that change added
     # a call to rd_kafka_all_brokers_wakeup , which seems to cause a hang of
@@ -337,9 +353,18 @@ class KafkaProducer(Producer):
     # with high message production rates and other poll-callers winning the
     # race for calling callbacks, this will never complete.
     #
+    # timeout = None is infinite timeout
+    # timeout = "default" (or any non-number) should never be passed by callers,
+    #           but is used here to indicate use of configured default.
+    #
+    if timeout is None:
+      # confluent_kafka uses -1 for infinite timeout
+      timeout = -1
+    elif timeout == "default":
+      timeout = self.config['produce_timeout']
     left = len(self)
     initial = left
-    if timeout is None:
+    if timeout<0:
       while left > 0:
         con = self.poll(timeout_jiffy)
         initial -= con
@@ -351,6 +376,11 @@ class KafkaProducer(Producer):
     return max([left,0])
 
   def poll(self, timeout=0):
+    # timeout = 0 means nowait (default)
+    # timeout = None means infinite timeout
+    if timeout is None:
+      # confluent_kafka uses -1 for infinite timeout
+      timeout = -1
     return super().poll(timeout)
 
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
