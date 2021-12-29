@@ -2,7 +2,7 @@ import copy
 import inspect
 import logging
 from time import time
-from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, TIMESTAMP_NOT_AVAILABLE
+from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_NOT_AVAILABLE
 from kafka.future import Future
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
@@ -213,10 +213,21 @@ class KafkaConsumer(Consumer):
   def seek(self, tp, offset):
     return super().seek(TopicPartitionOffset(tp.topic, tp.partition, offset))
 
-  def seek_to_beginning(self):
-    for tp in self.assignment():
+  def seek_to_beginning(self, tps=None):
+    if tps is None or len(tps) < 1:
+      tps = self.assignment()
+    for tp in tps:
       try:
         self.seek(tp, OFFSET_BEGINNING)
+      except:
+        pass
+
+  def seek_to_end(self, tps=None):
+    if tps is None or len(tps) < 1:
+      tps = self.assignment()
+    for tp in tps:
+      try:
+        self.seek(tp, OFFSET_END)
       except:
         pass
 
@@ -241,7 +252,7 @@ class KafkaProducer(Producer):
                  'ssl_crlfile': 'ssl.crl.location',
                  'ssl_password': 'ssl.key.password',
                  'ssl_ciphers': 'ssl.cipher.suites',
-                 'max_request_size': 'message.max.bytes', # this maps the hard limit functionality appropriately                                                 
+                 'max_request_size': 'message.max.bytes', # this maps the hard limit functionality appropriately
                  'bootstrap_servers': 'bootstrap.servers',
                  'client_id': 'client.id',
                  'group_id': 'group.id',
@@ -263,7 +274,7 @@ class KafkaProducer(Producer):
                  'sasl_plain_password': 'sasl.password',
                  'sasl_kerberos_service_name': 'sasl.kerberos.service.name',
                }
-  CONFIG_MAP_NULL = [ 'ssl_context', 
+  CONFIG_MAP_NULL = [ 'ssl_context',
                       'socket_options',
                       'batch_size',
                       'partitioner',
