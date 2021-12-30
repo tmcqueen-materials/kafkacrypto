@@ -2,7 +2,7 @@ import copy
 import inspect
 import logging
 from time import time
-from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_NOT_AVAILABLE
+from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_NOT_AVAILABLE, KafkaException, KafkaError
 from kafka.future import Future
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
@@ -30,18 +30,18 @@ class FutureRecordMetadata(Future):
     self.value_len = value_len
 
   def base_callback(self, err, msg):
-    if err != None:
-      self.failure(err)
+    if err is not None:
+      super().failure(KafkaException(err))
     elif msg is None:
-      self.failure('null msg')
+      super().failure(KafkaException(KafkaError.UNKNOWN,'null msg'))
     elif msg.error() != None:
-      self.failure(msg.error())
+      super().failure(KafkaException(msg.error()))
     else:
       # success
       metadata = RecordMetadata(msg.topic(), msg.partition(), TopicPartition(msg.topic(), msg.partition()),
                                 msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else int(time()*1000),
                                 None, self.key_len, self.value_len, -1)
-      self.success(metadata)
+      super().success(metadata)
 
   def get(self, timeout="default", timeout_jiffy=0.1):
     # timeout = None is infinite timeout, for compatibility with kafka-python's FutureRecordMetadata
@@ -55,12 +55,13 @@ class FutureRecordMetadata(Future):
       last_time = time()+timeout
     else:
       last_time = time()+timeout
+    orig_timeout = timeout
     while not self.is_done and timeout>0:
       self._producer.poll(min(timeout,timeout_jiffy))
       timeout = last_time-time()
     if not self.is_done:
-      raise FutureTimeoutError("Timeout after waiting for %s secs." % (timeout,))
-    if self.failed():
+      raise FutureTimeoutError("Timeout after waiting for %s secs." % (orig_timeout,))
+    if super().failed():
       raise self.exception
     return self.value
 
