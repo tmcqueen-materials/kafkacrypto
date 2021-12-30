@@ -30,18 +30,24 @@ class FutureRecordMetadata(Future):
     self.value_len = value_len
 
   def base_callback(self, err, msg):
+    self._producer._log.debug("Entering base callback with err=%s and msg=%s.", str(err), str(msg))
     if err is not None:
+      self._producer._log.debug("Callback failed (non-None err).")
       super().failure(KafkaException(err))
     elif msg is None:
+      self._producer._log.debug("Callback failed (None msg).")
       super().failure(KafkaException(KafkaError.UNKNOWN,'null msg'))
     elif msg.error() != None:
+      self._producer._log.debug("Callback failed (non-None msg.error).")
       super().failure(KafkaException(msg.error()))
     else:
       # success
+      self._producer._log.debug("Callback success.")
       metadata = RecordMetadata(msg.topic(), msg.partition(), TopicPartition(msg.topic(), msg.partition()),
                                 msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else int(time()*1000),
                                 None, self.key_len, self.value_len, -1)
       super().success(metadata)
+    self._producer._log.debug("Finished with base callback with err=%s and msg=%s.", str(err), str(msg))
 
   def get(self, timeout="default", timeout_jiffy=0.1):
     # timeout = None is infinite timeout, for compatibility with kafka-python's FutureRecordMetadata
@@ -55,14 +61,17 @@ class FutureRecordMetadata(Future):
       last_time = time()+timeout
     else:
       last_time = time()+timeout
+    self._producer._log.debug("Entering FutureRecordMetadata get with timeout=%s.", str(timeout))
     orig_timeout = timeout
     while not self.is_done and timeout>0:
       self._producer.poll(min(timeout,timeout_jiffy))
       timeout = last_time-time()
+      self._producer._log.debug("FutureRecordMetadata polling done, remaining timeout=%s.", str(timeout))
     if not self.is_done:
       raise FutureTimeoutError("Timeout after waiting for %s secs." % (orig_timeout,))
     if super().failed():
       raise self.exception
+    self._producer._log.debug("Finished with FutureRecordMetadata get")
     return self.value
 
 
@@ -164,6 +173,7 @@ class KafkaConsumer(Consumer):
       self.subscribe(topics)
 
   def commit(self, offsets=None):
+    self._log.debug("Executing Consumer commit.")
     if offsets==None:
       return super().commit()
     else:
@@ -173,6 +183,7 @@ class KafkaConsumer(Consumer):
       return super().commit(offsets=offs)
 
   def subscribe(self, topics=None, pattern=None, listener=None):
+    self._log.info("Executing Consumer subscribe with topics=%s, pattern=%s, listener=%s", str(topics), str(pattern), str(listener))
     if not topics is None:
       topics = copy.copy(topics)
     else:
@@ -191,7 +202,9 @@ class KafkaConsumer(Consumer):
     rvm = {}
     if (max_records is None) or max_records <= 0 or max_records > self.config['max_poll_records']:
       max_records = self.config['max_poll_records']
+    self._log.debug("Entering Consumer poll with timeout_ms=%s and max_records=%s", str(timeout_ms), str(max_records))
     msgs = super().consume(max_records,timeout_ms/1000.0)
+    self._log.debug("Consumer poll consume complete.")
     for msg in msgs:
       if not (msg is None) and msg.error() is None:
         rvk = TopicPartition(msg.topic(),msg.partition())
@@ -203,12 +216,14 @@ class KafkaConsumer(Consumer):
     return rvm
 
   def assign(self, partitions):
+    self._log.info("Executing Consumer assign with partitions=%s.", str(partitions))
     tps = []
     for tp in partitions:
       tps.append(TopicPartitionOffset(tp.topic, tp.partition))
     return super().assign(tps)
 
   def assign_and_seek(self, partoffs):
+    self._log.info("Executing Consumer assign_and_seek with partoffs=%s.", str(partoffs))
     tps = []
     for tpo in partoffs:
       if (tpo.offset > 0):
@@ -218,9 +233,11 @@ class KafkaConsumer(Consumer):
     return super().assign(tps)
 
   def seek(self, tp, offset):
+    self._log.debug("Executing Consumer seek.")
     return super().seek(TopicPartitionOffset(tp.topic, tp.partition, offset))
 
   def seek_to_beginning(self, tps=None):
+    self._log.debug("Executing Consumer seek_to_beginning.")
     if tps is None or len(tps) < 1:
       tps = self.assignment()
     for tp in tps:
@@ -230,6 +247,7 @@ class KafkaConsumer(Consumer):
         pass
 
   def seek_to_end(self, tps=None):
+    self._log.debug("Executing Consumer seek_to_end.")
     if tps is None or len(tps) < 1:
       tps = self.assignment()
     for tp in tps:
@@ -365,26 +383,35 @@ class KafkaProducer(Producer):
       timeout = self.config['produce_timeout']
     left = len(self)
     initial = left
+    self._log.debug("Entering Producer flush with timeout=%s and left=%s.", str(timeout), str(left))
     if timeout<0:
       while left > 0:
         con = self.poll(timeout_jiffy)
         initial -= con
         left = min([len(self),initial])
+        self._log.debug("Producer flush poll cycle complete, left=%s.", str(left))
     else:
       con = self.poll(timeout)
       initial -= con
       left = min([len(self),initial])
+      self._log.debug("Producer flush single poll cycle complete, left=%s.", str(left))
+    if max([left,0]) != 0:
+      self._log.info("Producer flush complete, but messages left=%s greater than zero.", str(max([left,0])))
+    else:
+      self._log.debug("Producer flush complete.")
     return max([left,0])
 
   def poll(self, timeout=0):
     # timeout = 0 means nowait (default)
     # timeout = None means infinite timeout
+    self._log.debug("Executing Producer poll with timeout=%s.", str(timeout))
     if timeout is None:
       # confluent_kafka uses -1 for infinite timeout
       timeout = -1
     return super().poll(timeout)
 
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
+    self._log.debug("Executing Producer send to topic=%s, with value=%s, key=%s, headers=%s, partition=%s, timestamp_ms=%s.", str(topic), str(value), str(key), str(headers), str(partition), str(timestamp_ms))
     if key!=None:
       key = self.ks(topic, key)
     if value!=None:
