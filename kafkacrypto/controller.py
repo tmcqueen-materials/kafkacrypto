@@ -7,7 +7,7 @@ from kafkacrypto import TopicPartition
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoControllerError
 from kafkacrypto.provisioners import Provisioners
-from kafkacrypto.utils import log_limited
+from kafkacrypto.utils import log_limited, format_exception_shim
 
 class KafkaCryptoController(KafkaCryptoBase):
   """ A simple controller implementation, resigning requests for keys
@@ -146,7 +146,10 @@ class KafkaCryptoController(KafkaCryptoBase):
         self._lock.release()
 
       # Third, flush producer
-      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      try:
+        self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      except Exception as e:
+        self._logger.warning("".join(format_exception_shim(e)))
 
       # Fourth, commit offsets
       if (self._kc.config['group_id'] is not None):
