@@ -226,9 +226,12 @@ class KafkaCrypto(KafkaCryptoBase):
             # unknown object
             log_limited(self._logger.warning, "Unknown topic type in message: %s", msg)
         self._lock.release()
-  
+
       # Flush producer
-      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      try:
+        self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      except Exception as e:
+        self._parent._logger.warning("".join(format_exception_shim(e)))
 
       # Second, deal with subscription changes
       self._lock.acquire()
@@ -282,7 +285,10 @@ class KafkaCrypto(KafkaCryptoBase):
       self._lock.release()
 
       # Flush producer
-      self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      try:
+        self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+      except Exception as e:
+        self._parent._logger.warning("".join(format_exception_shim(e)))
 
       # Fourth, periodically increment ratchet and prune old keys
       self._logger.debug("Checking ratchet time.")
