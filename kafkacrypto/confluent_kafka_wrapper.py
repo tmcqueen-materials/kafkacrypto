@@ -390,7 +390,7 @@ class KafkaProducer(Producer):
         initial -= con
         left = min([len(self),initial])
         self._log.debug("Producer flush poll cycle complete, left=%s.", str(left))
-    else:
+    elif left > 0:
       con = self.poll(timeout)
       initial -= con
       left = min([len(self),initial])
