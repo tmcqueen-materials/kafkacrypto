@@ -283,9 +283,10 @@ class CryptoExchange(object):
             self._logger.info("  New chain supports direct key requests. Enabling.")
             self.__spk_direct_request = True
       except Exception as e:
-        # exceptions when checking direct are harmless, but should be reported.
-        self._logger.info("".join(format_exception_shim(e)))
-        pass
+        # exceptions when checking direct mean it is not supported
+        with self.__spk_chain_lock:
+          self._logger.info("  New chain does not support direct key requests. Disabling.")
+          self.__spk_direct_request = False
       return newchain
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
