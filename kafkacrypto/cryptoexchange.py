@@ -36,6 +36,7 @@ class CryptoExchange(object):
     self.__maxage = maxage if (maxage!=None and maxage>0) else 86400
     self.__randombytes = randombytes if randombytes>=32 else 32
     self.__cryptokey = cryptokey
+    self.__spk_direct_request = True
     self.__spk_chain = []
     self.__spk_chain_lock = Lock()
     self.__allowdenylist_lock = Lock()
@@ -173,6 +174,8 @@ class CryptoExchange(object):
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
         if (len(tchain) == 0):
+          # Use default for direct use when empty.
+          self.__spk_direct_request = True
           poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], use_bin_type=True)
           lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], use_bin_type=True)
        	  _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
@@ -231,12 +234,10 @@ class CryptoExchange(object):
     finally:
       self.__allowdenylist_lock.release()
 
-  def valid_spk_chain(self):
+  def direct_request_spk_chain(self):
     with self.__spk_chain_lock:
-      if len(self.__spk_chain) > 0:
-        return True
-      else:
-        return False
+      rv = self.__spk_direct_request
+    return rv
 
   def replace_spk_chain(self, newchain):
     # update_spk_chain captures any exceptions and returns None when they happen.
@@ -261,16 +262,31 @@ class CryptoExchange(object):
       # If we get here, it is a valid chain. So now we need
       # to see if it is "superior" than our current chain.
       # This means a larger minimum max_age.
+      min_max_age = 0
       with self.__spk_chain_lock:
-        min_max_age = 0
         for cpk in self.__spk_chain:
           if (min_max_age == 0 or cpk[0]<min_max_age):
             min_max_age = cpk[0]
-        if (pk[0] < min_max_age):
-          raise ProcessChainError("New chain has shorter expiry time than current chain.", pkprint)
-        self.__spk_chain = msgpack.unpackb(newchain,raw=True)
-        self._logger.warning("Utilizing new chain: %s", str(pkprint))
-        return newchain
+      if (pk[0] < min_max_age):
+        raise ProcessChainError("New chain has shorter expiry time than current chain.", pkprint)
+      self.__spk_chain = msgpack.unpackb(newchain,raw=True)
+      self._logger.warning("Utilizing new chain: %s", str(pkprint))
+      # Check if we are capable of direct key requests (default is "no")
+      with self.__spk_chain_lock:
+        self.__spk_direct_request = False
+        self._logger.debug("Defaulting new chain to not handle direct requests.")
+      try:
+        with self.__allowdenylist_lock:
+          pk,_ = process_chain(newchain,None,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+        if len(pk) >= 3:
+          with self.__spk_chain_lock:
+            self._logger.info("  New chain supports direct key requests. Enabling.")
+            self.__spk_direct_request = True
+      except Exception as e:
+        # exceptions when checking direct are harmless, but should be reported.
+        self._logger.info("".join(format_exception_shim(e)))
+        pass
+      return newchain
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       return None
