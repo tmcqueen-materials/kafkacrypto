@@ -10,13 +10,41 @@ from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
 
-# See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html
-# Need F_FULLFSYNC on OS X / iOS to actually flush everything
+
+# *nix specific items
 try:
     import fcntl
+
+    # We need to be able to exclusively lock a file in the implementation of
+    # AtomicWriter here. Takes as input a file descriptor.
+    def exclusive_lock(fd):
+        fcntl.lockf(fd,fcntl.LOCK_EX | fcntl.LOCK_NB) # Locks entire file exclusively
+    def exclusive_unlock(fd):
+        fcntl.lockf(fd,fcntl.LOCK_UN) # Unlock file exclusively
+
+    # See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html
+    # Need F_FULLFSYNC on OS X / iOS to actually flush everything
     if hasattr(fcntl, 'F_FULLFSYNC'):
         def fsync(fd):
             fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+except ImportError:
+    pass
+
+# Windows specific items
+try:
+    import msvcrt
+    from os import fstat as osfstat
+
+    # We need to be able to exclusively lock a file in the implementation of
+    # AtomicWriter here. Takes as input a file descriptor.
+    # Per:
+    #   https://bugs.python.org/issue29392
+    #   https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/locking?view=msvc-170
+    # We have to find out the size of the file to lock all of it
+    def exclusive_lock(fd):
+        msvcrt.locking(fd,msvcrt.LK_NBLCK,osfstat(fd).st_size) # Locks entire file exclusively
+    def exclusive_unlock(fd):
+        msvcrt.locking(fd,msvcrt.LK_UNLCK,osfstat(fd).st_size) # Unlock file exclusively
 except ImportError:
     pass
 
@@ -102,6 +130,16 @@ def str_encode(value, iskey=False):
 class AtomicFile(object):
   """The AtomicFile class instantiates a very simplistic file with atomic semantics.
      Nothing is written until flush is issued, then all or nothing is written).
+     Because multiple writes can be bunched and then committed atomically, we are
+     required to be the only process reading or writing the file (a more elaborate
+     implementation could elide this requirement, but is not needed in KafkaCrypto).
+
+     There is a known race condition where there are brief windows in time (during
+     the flush operation) when another process could swoop in and take over access.
+     However, this will be "noisy" as then the exlusive lock request at the end
+     of the flush will fail. So it achieves the needed guarantee here: at most one
+     AtomicFile object is associated with a given file at a time.
+
      It IS NOT thread safe.
   """
   def __init__(self, file, binary=False, tmpfile=None):
@@ -111,14 +149,25 @@ class AtomicFile(object):
     self.__filedir = normpath(dirname(file))
     self.__binary = binary
     if not binary:
-      self.__fm = "r"
-      self.__wfm = "r+"
+      self.__fm = "r+"
     else:
-      self.__fm = "rb"
-      self.__wfm = "rb+"
+      self.__fm = "rb+"
     self.__tmpfile = tmpfile
-    self.__readfile = open(self.__file, self.__fm)
+    # Readfile is only used for reading. However, to enable exclusive access, we
+    # must actually open it for writing too
+    self.__readfile = self.internal_open(self.__file, self.__fm)
+    # Writefile is only used for writing. However, to keep read/write consistency,
+    # we must open it for both reading and writing
     self.__writefile = None
+
+  def internal_open(self, *args, **kwargs):
+    rv = open(*args, **kwargs)
+    exclusive_lock(rv.fileno())
+    return rv
+
+  def internal_close(self, ofo):
+    exclusive_unlock(ofo.fileno())
+    return ofo.close()
 
   def seek(self, *args, **kwargs):
     if self.__writefile != None:
@@ -127,8 +176,10 @@ class AtomicFile(object):
 
   def write(self, *args, **kwargs):
     if self.__writefile == None:
+      exclusive_unlock(self.__readfile.fileno())
       copy(self.__file, self.__tmpfile)
-      self.__writefile = open(self.__tmpfile, self.__wfm)
+      exclusive_lock(self.__readfile.fileno())
+      self.__writefile = self.internal_open(self.__tmpfile, self.__fm)
       self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.write(*args, **kwargs)
 
@@ -141,8 +192,10 @@ class AtomicFile(object):
 
   def truncate(self, **kwargs):
     if self.__writefile == None:
+      exclusive_unlock(self.__readfile.fileno())
       copy(self.__file,	self.__tmpfile)
-      self.__writefile = open(self.__tmpfile, self.__wfm)
+      exclusive_lock(self.__readfile.fileno())
+      self.__writefile = self.internal_open(self.__tmpfile, self.__fm)
       self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.truncate(**kwargs)
 
@@ -160,10 +213,11 @@ class AtomicFile(object):
       # preserve current file read/write position to restore later
       pos = self.__writefile.tell()
       # sync and close reader and writer handles
-      self.__readfile.close()
+      self.internal_close(self.__readfile)
       fsync(self.__writefile.fileno())
-      self.__writefile.close()
+      self.internal_close(self.__writefile)
       # copy file permissions, etc, to tmpfile, in preparation for atomic replace
+      # both files are closed, so no exlusive locks to release first
       copymode(self.__file, self.__tmpfile)
       # the atomic operation
       # atomic on python 3.3+ on POSIX
@@ -176,7 +230,7 @@ class AtomicFile(object):
       # Issue the directory fsync to commit it here.
       self.flush_dir()
       # reopen for reading, restoring read pointer location
-      self.__readfile = open(self.__file, self.__fm)
+      self.__readfile = self.internal_open(self.__file, self.__fm)
       self.__readfile.seek(pos,0)
       self.__writefile = None
       return rv
@@ -186,7 +240,7 @@ class AtomicFile(object):
 
   def close(self):
     self.flush()
-    return self.__readfile.close()
+    return self.internal_close(self.__readfile)
 
   def __iter__(self):
     return self.__readfile.__iter__()
