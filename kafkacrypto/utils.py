@@ -1,13 +1,24 @@
 import pysodium
 import msgpack
 from hashlib import sha256
-from os import replace, remove, fsync
+from os import replace, remove, fsync, open as osopen, close as osclose
+from os.path import dirname, normpath
 from shutil import copy, copymode
 from base64 import b64encode, b64decode
 from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
+
+# See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html
+# Need F_FULLFSYNC on OS X / iOS to actually flush everything
+try:
+    import fcntl
+    if hasattr(fcntl, 'F_FULLFSYNC'):
+        def fsync(fd):
+            fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+except ImportError:
+    pass
 
 # Shim for Python 3.10+ compatibility
 def format_exception_shim(exc=None, **kwargs):
@@ -97,6 +108,7 @@ class AtomicFile(object):
     if tmpfile==None:
       tmpfile = file + ".tmp"
     self.__file = file
+    self.__filedir = normpath(dirname(file))
     self.__binary = binary
     if not binary:
       self.__fm = "r"
@@ -134,16 +146,36 @@ class AtomicFile(object):
       self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.truncate(**kwargs)
 
+  def flush_dir(self):
+    fd = osopen(self.__filedir, 0)
+    try:
+      fsync(fd)
+    finally:
+      osclose(fd)
+
   def flush(self):
     if self.__writefile != None:
-      # the atomic operation
+      # flush written data to temporary file
       rv = self.__writefile.flush()
+      # preserve current file read/write position to restore later
       pos = self.__writefile.tell()
+      # sync and close reader and writer handles
       self.__readfile.close()
       fsync(self.__writefile.fileno())
       self.__writefile.close()
+      # copy file permissions, etc, to tmpfile, in preparation for atomic replace
       copymode(self.__file, self.__tmpfile)
-      replace(self.__tmpfile, self.__file) # atomic on python 3.3+
+      # the atomic operation
+      # atomic on python 3.3+ on POSIX
+      # atomic on python 3.3+ on Windows NT if filesystem supports atomic moves
+      #   https://social.msdn.microsoft.com/Forums/windowsdesktop/en-US/449bb49d-8acc-48dc-a46f-0760ceddbfc3/movefileexmovefilereplaceexisting-ntfs-same-volume-atomic?forum=windowssdk#a239bc26-eaf0-4920-9f21-440bd2be9cc8
+      #   https://github.com/python/cpython/blob/main/Modules/posixmodule.c#L4728
+      replace(self.__tmpfile, self.__file)
+      # The above is atomic, but not necessarily committed until the containing directory's metadata is updated.
+      # (which is not guaranteed on windows NT since MOVEFILE_WRITE_THROUGH is not passed in Pythons replace implementation, and not guaranteed on POSIX either)
+      # Issue the directory fsync to commit it here.
+      self.flush_dir()
+      # reopen for reading, restoring read pointer location
       self.__readfile = open(self.__file, self.__fm)
       self.__readfile.seek(pos,0)
       self.__writefile = None
