@@ -358,6 +358,11 @@ class KafkaProducer(Producer):
         self.config[oldk] = self.cf_config[newk]
     super().__init__(self.cf_config)
 
+  def close(self):
+    # confluent-kafka has no concept of a "close" operation,
+    # so this is a no-op
+    pass
+
   def flush(self, timeout="default", timeout_jiffy=0.1):
     # librdkafka 1.8.0 changed the behavior of flush() to ignore linger_ms and
     # immediately attempt to send messages. Unfortunately, that change added
