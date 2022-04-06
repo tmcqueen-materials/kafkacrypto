@@ -172,6 +172,11 @@ class KafkaConsumer(Consumer):
     if topics:
       self.subscribe(topics)
 
+  def close(self):
+    # confluent-kafka consumer causes crashes on close,
+    # so this is a no-op
+    pass
+
   def commit(self, offsets=None):
     self._log.debug("Executing Consumer commit.")
     if offsets==None:
