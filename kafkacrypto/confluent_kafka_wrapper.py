@@ -174,7 +174,9 @@ class KafkaConsumer(Consumer):
 
   def close(self):
     # confluent-kafka consumer causes crashes on close,
-    # so this is a no-op
+    # so this commits offsets and unsubscribes
+    self.commit()
+    self.subscribe()
     pass
 
   def commit(self, offsets=None):
@@ -365,7 +367,8 @@ class KafkaProducer(Producer):
 
   def close(self):
     # confluent-kafka has no concept of a "close" operation,
-    # so this is a no-op
+    # so this flushes queues only
+    self.flush()
     pass
 
   def flush(self, timeout="default", timeout_jiffy=0.1):
