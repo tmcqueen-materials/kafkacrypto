@@ -176,7 +176,7 @@ class KafkaConsumer(Consumer):
     # confluent-kafka consumer causes crashes on close,
     # so this commits offsets and unsubscribes
     self.commit()
-    self.subscribe()
+    self.unsubscribe()
     pass
 
   def commit(self, offsets=None):
