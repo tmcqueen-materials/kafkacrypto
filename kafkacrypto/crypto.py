@@ -22,28 +22,32 @@ class KafkaCrypto(KafkaCryptoBase):
         kp (KafkaProducer): Pre-initialized KafkaProducer, ready for
                             handling crypto-keying messages. Should
                             not be used elsewhere, as this class
-                            changes some configuration values.
-        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready ofor      
+                            changes some configuration values. Always
+                            closed on close.
+        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
-                            changes some configuration values.
+                            changes some configuration values. Always
+                            closed on close.
          config (str,file): Filename or File IO object in which
                             configuration data is stored. Set to None
                             to load from the default location based
                             on nodeID. Must be seekable, with read/
                             write permission, honor sync requests,
                             and not be written by any other program.
+                            Only closed if opened by us.
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
                             (get/sign_spk,get/use_epk,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
-                seed (obj): Optional object implementing the 
+                seed (obj): Optional object implementing the
                             necessary ratchet functions
                             (increment, generate). Set to None to
                             load from the default location in
-                            the configuration file.
+                            the configuration file. Only closed
+                            if opened by us.
   """
 
   #
@@ -86,7 +90,9 @@ class KafkaCrypto(KafkaCryptoBase):
       if (seed is None):
         seed = self._nodeID + ".seed"
         self._cryptostore.store_value('ratchet', 'file#' + seed)
+    self._seed_close = False
     if (isinstance(seed,(str,))):
+      self._seed_close = True
       seed = Ratchet(file=seed)
     if (not hasattr(seed, 'increment') or not inspect.isroutine(seed.increment) or not hasattr(seed, 'get_key_value_generators') or not inspect.isroutine(seed.get_key_value_generators)):
       raise KafkaCryptoError("Invalid seed source supplied!")
@@ -146,7 +152,8 @@ class KafkaCrypto(KafkaCryptoBase):
     finally:
       self._mgmt_thread = None
     try:
-      self._seed.close()
+      if self._seed_close:
+        self._seed.close()
     except:
       pass
     finally:

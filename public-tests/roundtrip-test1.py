@@ -32,6 +32,7 @@ class ProdThread(object):
     self.kcc.close()
     self.kcp.close()
     self.kc.close()
+    self.kcs.close()
 
 class ConsumeThread(object):
   def __init__(self,uval):
@@ -63,6 +64,7 @@ class ConsumeThread(object):
     self.kcc.close()
     self.kcp.close()
     self.kc.close()
+    self.kcs.close()
     if not rcvd:
       raise RuntimeError("Value Not Received!")
 

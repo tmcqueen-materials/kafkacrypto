@@ -14,6 +14,7 @@ class Ratchet(KeyGenerator):
                            Must be seekable, with read/write permission, and
                            honor sync requests. If it is a File IO object,
        	                   a single write call should be atomic (all or nothing).
+                           Only "closed" on close if we opened it.
   """
   #
   # Ratchet global configuration. These define the parameters
@@ -28,7 +29,9 @@ class Ratchet(KeyGenerator):
   #
   def __init__(self, file):
     super().__init__()
+    self.__file_close = False
     if (isinstance(file, (str))):
+      self.__file_close = True
       if (not path.exists(file)):
         self.__init_ratchet(file)
       file = open(file, 'rb+', 0)
@@ -37,7 +40,8 @@ class Ratchet(KeyGenerator):
 
   def close(self):
     try:
-      self.__file.close()
+      if self.__file_close:
+        self.__file.close()
     except:
       pass
     finally:

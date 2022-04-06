@@ -18,11 +18,13 @@ class KafkaCryptoBase(object):
         kp (KafkaProducer): Pre-initialized KafkaProducer, ready for
                             handling crypto-keying messages. Should
                             not be used elsewhere, as this class
-                            changes some configuration values.
-        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for      
+                            changes some configuration values. Always
+                            closed during a close operation.
+        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
-                            changes some configuration values.
+                            changes some configuration values. Always
+                            closed during a close operation.
      config (str,file,obj): Filename or File IO object in which
                             configuration data is stored. Set to None
                             to load from the default location based
@@ -33,7 +35,8 @@ class KafkaCryptoBase(object):
                             the necessary functions to be a crypto
                             config store (load_section, load_value,
                             store_value, load_opaque_value, store_opaque_value,
-                            set_cryptokey)
+                            set_cryptokey). Only "closed" during close
+                            if opened by this class.
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
                             (get/sign_spk,get/use_epk,
@@ -82,7 +85,9 @@ class KafkaCryptoBase(object):
         hasattr(config, 'store_opaque_value') and inspect.isroutine(config.store_opaque_value) and
         hasattr(config, 'set_cryptokey') and inspect.isroutine(config.set_cryptokey)):
       self._cryptostore = config
+      self._cryptostore_close = False
     else:
+      self._cryptostore_close = True
       self._cryptostore = CryptoStore(nodeID, config)
     nodeID = self._cryptostore.get_nodeID()
     self.__configure()
@@ -141,7 +146,8 @@ class KafkaCryptoBase(object):
     finally:
       self._kc = None
     try:
-      self._cryptostore.close()
+      if self._cryptostore_close:
+        self._cryptostore.close()
     except:
       pass
     finally:
