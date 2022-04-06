@@ -1,7 +1,7 @@
 import pysodium
 import msgpack
 from hashlib import sha256
-from os import replace, remove, fsync, open as osopen, close as osclose
+from os import replace, remove, fsync as osfsync, open as osopen, close as osclose
 from os.path import dirname, normpath
 from shutil import copy, copymode
 from base64 import b64encode, b64decode
@@ -10,22 +10,21 @@ from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
 
-
 # *nix specific items
 try:
     import fcntl
 
     # We need to be able to exclusively lock a file in the implementation of
     # AtomicWriter here. Takes as input a file descriptor.
-    def exclusive_lock(fd):
-        fcntl.lockf(fd,fcntl.LOCK_EX | fcntl.LOCK_NB) # Locks entire file exclusively
-    def exclusive_unlock(fd):
-        fcntl.lockf(fd,fcntl.LOCK_UN) # Unlock file exclusively
+    def exclusive_lock(fh):
+        fcntl.lockf(fh.fileno(),fcntl.LOCK_EX | fcntl.LOCK_NB) # Locks entire file exclusively
+    def exclusive_unlock(fh):
+        fcntl.lockf(fh.fileno(),fcntl.LOCK_UN) # Unlock file exclusively
 
     # See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html
     # Need F_FULLFSYNC on OS X / iOS to actually flush everything
     if hasattr(fcntl, 'F_FULLFSYNC'):
-        def fsync(fd):
+        def osfsync(fd):
             fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
 except ImportError:
     pass
@@ -40,11 +39,20 @@ try:
     # Per:
     #   https://bugs.python.org/issue29392
     #   https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/locking?view=msvc-170
-    # We have to find out the size of the file to lock all of it
-    def exclusive_lock(fd):
-        msvcrt.locking(fd,msvcrt.LK_NBLCK,osfstat(fd).st_size) # Locks entire file exclusively
-    def exclusive_unlock(fd):
-        msvcrt.locking(fd,msvcrt.LK_UNLCK,osfstat(fd).st_size) # Unlock file exclusively
+    # We have to find out the size of the file to lock all of it. But for
+    # a file being written to, its size might be different at lock time than unlock time.
+    # We can, however, lock past the end of file. So lock the maximum amount we can (2^31-1),
+    # and unlock the same. We also have to make sure the lock starts from the beginning of the file.
+    def exclusive_lock(fh):
+        pos = fh.tell()
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(),msvcrt.LK_NBLCK,2147483647) # Locks entire file exclusively
+        fh.seek(pos)
+    def exclusive_unlock(fh):
+        pos = fh.tell()
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(),msvcrt.LK_UNLCK,2147483647) # Unlock file exclusively
+        fh.seek(pos)
 except ImportError:
     pass
 
@@ -162,11 +170,11 @@ class AtomicFile(object):
 
   def internal_open(self, *args, **kwargs):
     rv = open(*args, **kwargs)
-    exclusive_lock(rv.fileno())
+    exclusive_lock(rv)
     return rv
 
   def internal_close(self, ofo):
-    exclusive_unlock(ofo.fileno())
+    exclusive_unlock(ofo)
     return ofo.close()
 
   def seek(self, *args, **kwargs):
@@ -176,9 +184,9 @@ class AtomicFile(object):
 
   def write(self, *args, **kwargs):
     if self.__writefile == None:
-      exclusive_unlock(self.__readfile.fileno())
+      exclusive_unlock(self.__readfile)
       copy(self.__file, self.__tmpfile)
-      exclusive_lock(self.__readfile.fileno())
+      exclusive_lock(self.__readfile)
       self.__writefile = self.internal_open(self.__tmpfile, self.__fm)
       self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.write(*args, **kwargs)
@@ -192,19 +200,23 @@ class AtomicFile(object):
 
   def truncate(self, **kwargs):
     if self.__writefile == None:
-      exclusive_unlock(self.__readfile.fileno())
+      exclusive_unlock(self.__readfile)
       copy(self.__file,	self.__tmpfile)
-      exclusive_lock(self.__readfile.fileno())
+      exclusive_lock(self.__readfile)
       self.__writefile = self.internal_open(self.__tmpfile, self.__fm)
       self.__writefile.seek(self.__readfile.tell(),0)
     return self.__writefile.truncate(**kwargs)
 
   def flush_dir(self):
-    fd = osopen(self.__filedir, 0)
     try:
-      fsync(fd)
-    finally:
-      osclose(fd)
+      fd = osopen(self.__filedir, 0)
+      try:
+        osfsync(fd)
+      finally:
+        osclose(fd)
+    except PermissionError:
+      pass # Ignorable since it just means atomic operation may take longer to complete (but still atomic)
+           # Happens on Windows
 
   def flush(self):
     if self.__writefile != None:
@@ -214,7 +226,7 @@ class AtomicFile(object):
       pos = self.__writefile.tell()
       # sync and close reader and writer handles
       self.internal_close(self.__readfile)
-      fsync(self.__writefile.fileno())
+      osfsync(self.__writefile.fileno())
       self.internal_close(self.__writefile)
       # copy file permissions, etc, to tmpfile, in preparation for atomic replace
       # both files are closed, so no exlusive locks to release first
