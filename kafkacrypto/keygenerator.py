@@ -32,6 +32,11 @@ class KeyGenerator(object):
     self.__ctx = ctx
     self.rekey(secret)
 
+  def close(self):
+    self.__secret = None
+    self.__ctx = None
+    self.__salt = None
+
   def rekey(self, secret):
     if (not isinstance(secret, (bytes,bytearray)) or len(secret) != self.SECRETSIZE or (not (self.__secret is None) and secret == self.__secret)):
       raise KafkaCryptoGeneratorError("Secret is malformed!")

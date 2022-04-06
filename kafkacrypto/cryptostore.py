@@ -68,6 +68,19 @@ class CryptoStore(object):
     if self._need_init:
       self.__init_cryptostore(file, nodeID)
 
+  def close(self):
+    with self.__lock:
+      try:
+        self.__file.close()
+      except:
+        pass
+      finally:
+        self.__file = None
+      with self.__keylock:
+        self.__cryptokey = None
+      self.__keylock = None
+    self.__lock = None
+
   def get_nodeID(self):
     # read-only, no lock needed
     return self._nodeID

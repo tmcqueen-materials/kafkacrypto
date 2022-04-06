@@ -35,6 +35,15 @@ class Ratchet(KeyGenerator):
     self.__file = file
     self.increment()
 
+  def close(self):
+    try:
+      self.__file.close()
+    except:
+      pass
+    finally:
+      self.__file = None
+    super().close()
+
   def increment(self):
     self.__file.seek(0,0)
     contents = msgpack.unpackb(self.__file.read(),raw=True)

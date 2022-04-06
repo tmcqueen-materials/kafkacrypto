@@ -133,14 +133,33 @@ class KafkaCrypto(KafkaCryptoBase):
             # stored pgens do not have generators as they should never be used for active production
             # (but secret stays around so lost consumers can catch up)
 
+    self._mgmt_thread_stop = False
     self._mgmt_thread = Thread(target=self._process_mgmt_messages,daemon=True)
     self._mgmt_thread.start()
+
+  def close(self):
+    self._mgmt_thread_stop = True
+    try:
+      self._mgmt_thread.join()
+    except:
+      pass
+    finally:
+      self._mgmt_thread = None
+    try:
+      self._seed.close()
+    except:
+      pass
+    finally:
+      self._seed = None
+    super().close()
 
   # Main background processing loop. Must assume that it can "die" at any
   # time, even mid-stride, so ordering of operations to ensure atomicity and
   # durability is critical.
   def _process_mgmt_messages(self):
     while True:
+      if self._mgmt_thread_stop:
+        break
       # First, process messages
       # we are the only thread ever using _kc, _kp, so we do not need the lock to use them
       msgs = self._kc.poll(timeout_ms=self.MGMT_POLL_INTERVAL, max_records=self.MGMT_POLL_RECORDS)

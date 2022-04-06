@@ -127,6 +127,27 @@ class KafkaCryptoBase(object):
     self._kp = kp
     self._kc = kc
 
+  def close(self):
+    try:
+      self._kp.close()
+    except:
+      pass
+    finally:
+      self._kp = None
+    try:
+      self._kc.close()
+    except:
+      pass
+    finally:
+      self._kc = None
+    try:
+      self._cryptostore.close()
+    except:
+      pass
+    finally:
+      self._cryptostore = None
+    self._cryptokey = None
+
   def __configure(self):
     for k in self.DEFAULTS.keys():
       v = self.DEFAULTS[k]
