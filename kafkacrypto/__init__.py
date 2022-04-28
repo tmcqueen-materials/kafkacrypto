@@ -13,6 +13,11 @@ try:
   import confluent_kafka
   from kafkacrypto.confluent_kafka_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset,OffsetAndMetadata
   warnings.warn("Using confluent_kafka: {}, librdkafka: {}".format(str(confluent_kafka.version()), str(confluent_kafka.libversion())),category=RuntimeWarning)
+  # enable custom flush workaround for affected versions of librdkafka: 1.8.x
+  # See https://github.com/edenhill/librdkafka/issues/3633
+  if confluent_kafka.libversion()[1] >= 0x01080000 and confluent_kafka.libversion()[1] < 0x01090000:
+    KafkaProducer.enable_flush_workaround = True
+    warnings.warn("  Enabling flush() workaround for librdkafka 1.8.x", category=RuntimeWarning)
 except ImportError:
   # fallback to kafka-python
   warnings.warn("No confluent_kafka package found. Falling back to kafka-python. It is highly, recommended that you install confluent_kafka and librdkafka for better performance, especially with large messages.",category=RuntimeWarning)

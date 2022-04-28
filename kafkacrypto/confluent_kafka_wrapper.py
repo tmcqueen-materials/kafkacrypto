@@ -2,6 +2,7 @@ import copy
 import inspect
 import logging
 from time import time
+from threading import Lock
 from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_NOT_AVAILABLE, KafkaException, KafkaError
 from kafka.future import Future
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
@@ -37,7 +38,7 @@ class FutureRecordMetadata(Future):
     elif msg is None:
       self._producer._log.debug("Callback failed (None msg).")
       super().failure(KafkaException(KafkaError.UNKNOWN,'null msg'))
-    elif msg.error() != None:
+    elif msg.error() is not None:
       self._producer._log.debug("Callback failed (non-None msg.error).")
       super().failure(KafkaException(msg.error()))
     else:
@@ -325,6 +326,9 @@ class KafkaProducer(Producer):
                       'sasl_kerberos_domain_name',
                       'sasl_oauth_token_provider',
                     ]
+
+  enable_flush_workaround = False
+
   def __init__(self, **configs):
     self._log = logging.getLogger(__name__)
     self.raw_config = configs
@@ -363,7 +367,13 @@ class KafkaProducer(Producer):
     for oldk,newk in self.CONFIG_MAP.items():
       if newk in self.cf_config.keys():
         self.config[oldk] = self.cf_config[newk]
+    self.messages_processed = 0
+    self.messages_processed_lock = Lock()
     super().__init__(self.cf_config)
+    if KafkaProducer.enable_flush_workaround:
+      self.flush = self._flush_workaround
+    else:
+      self.flush = self._flush_native
 
   def close(self):
     # confluent-kafka has no concept of a "close" operation,
@@ -371,7 +381,15 @@ class KafkaProducer(Producer):
     self.flush()
     pass
 
-  def flush(self, timeout="default", timeout_jiffy=0.1):
+  def _flush_native(self, timeout="default", timeout_jiffy=0.1):
+    if timeout is None:
+      # confluent_kafka uses -1 for infinite timeout
+      timeout = -1
+    elif timeout == "default":
+      timeout = self.config['produce_timeout']
+    return super().flush(timeout)
+
+  def _flush_workaround(self, timeout="default", timeout_jiffy=0.1):
     # librdkafka 1.8.0 changed the behavior of flush() to ignore linger_ms and
     # immediately attempt to send messages. Unfortunately, that change added
     # a call to rd_kafka_all_brokers_wakeup , which seems to cause a hang of
@@ -380,10 +398,6 @@ class KafkaProducer(Producer):
     #
     # This eventually results in non-sensical exceptions being thrown. We
     # fix it here by implementing flush as sucessive polling directly.
-    #
-    # It is highly recommended this be used with a timeout, since otherwise
-    # with high message production rates and other poll-callers winning the
-    # race for calling callbacks, this will never complete.
     #
     # timeout = None is infinite timeout
     # timeout = "default" (or any non-number) should never be passed by callers,
@@ -394,19 +408,23 @@ class KafkaProducer(Producer):
       timeout = -1
     elif timeout == "default":
       timeout = self.config['produce_timeout']
-    left = len(self)
+    with self.messages_processed_lock:
+      left = len(self)
+      final_processed = self.messages_processed+left
     initial = left
     self._log.debug("Entering Producer flush with timeout=%s and left=%s.", str(timeout), str(left))
     if timeout<0:
       while left > 0:
         con = self.poll(timeout_jiffy)
         initial -= con
-        left = min([len(self),initial])
+        with self.messages_processed_lock:
+          left = min([len(self),initial,max([0,final_processed-self.messages_processed])])
         self._log.debug("Producer flush poll cycle complete, left=%s.", str(left))
     elif left > 0:
       con = self.poll(timeout)
       initial -= con
-      left = min([len(self),initial])
+      with self.messages_processed_lock:
+        left = min([len(self),initial,max([0,final_processed-self.messages_processed])])
       self._log.debug("Producer flush single poll cycle complete, left=%s.", str(left))
     if max([left,0]) != 0:
       self._log.info("Producer flush complete, but messages left=%s greater than zero.", str(max([left,0])))
@@ -421,7 +439,11 @@ class KafkaProducer(Producer):
     if timeout is None:
       # confluent_kafka uses -1 for infinite timeout
       timeout = -1
-    return super().poll(timeout)
+    rv = super().poll(timeout)
+    if rv > 0:
+      with self.messages_processed_lock:
+        self.messages_processed += rv
+    return rv
 
   def send(self, topic, value=None, key=None, headers=None, partition=0, timestamp_ms=None):
     self._log.debug("Executing Producer send to topic=%s, with value=%s, key=%s, headers=%s, partition=%s, timestamp_ms=%s.", str(topic), str(value), str(key), str(headers), str(partition), str(timestamp_ms))
