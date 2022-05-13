@@ -183,12 +183,12 @@ class KafkaConsumer(Consumer):
   def commit(self, offsets=None):
     self._log.debug("Executing Consumer commit.")
     if offsets==None:
-      return super().commit()
+      return super().commit(asynchronous=False)
     else:
       offs = []
       for k in offsets.keys():
         offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
-      return super().commit(offsets=offs)
+      return super().commit(offsets=offs,asynchronous=False)
 
   def subscribe(self, topics=None, pattern=None, listener=None):
     self._log.info("Executing Consumer subscribe with topics=%s, pattern=%s, listener=%s", str(topics), str(pattern), str(listener))
