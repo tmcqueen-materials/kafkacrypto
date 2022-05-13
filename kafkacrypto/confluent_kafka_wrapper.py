@@ -190,6 +190,11 @@ class KafkaConsumer(Consumer):
         offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
       return super().commit(offsets=offs,asynchronous=False)
 
+  def commit_async(self, offsets=None):
+    # Right now callback is not implemented, so by leaving out of above we generate an exception
+    # when a caller tries to use that functionality.
+    return self.commit(offsets=offsets)
+
   def subscribe(self, topics=None, pattern=None, listener=None):
     self._log.info("Executing Consumer subscribe with topics=%s, pattern=%s, listener=%s", str(topics), str(pattern), str(listener))
     if not topics is None:
