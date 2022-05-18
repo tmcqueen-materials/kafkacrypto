@@ -269,8 +269,9 @@ class CryptoExchange(object):
             min_max_age = cpk[0]
       if (pk[0] < min_max_age):
         raise ProcessChainError("New chain has shorter expiry time than current chain.", pkprint)
-      self.__spk_chain = msgpack.unpackb(newchain,raw=True)
-      self._logger.warning("Utilizing new chain: %s", str(pkprint))
+      with self.__spk_chain_lock:
+        self.__spk_chain = msgpack.unpackb(newchain,raw=True)
+        self._logger.warning("Utilizing new chain: %s", str(pkprint))
       # Check if we are capable of direct key requests (default is "no")
       with self.__spk_chain_lock:
         self.__spk_direct_request = False
