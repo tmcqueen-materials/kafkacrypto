@@ -194,8 +194,12 @@ class KafkaConsumer(Consumer):
       try:
         if ke.args[0].code() in [KafkaError._NO_OFFSET]:
           # ignore errors about committing offsets (means we have subscribed but not yet been assigned a particular topicpartition)
-          # by doing this asynchronously
-          return super().commit(asynchronous=True)
+          # by doing this asynchronously. This matches the implicit kafka-python contract of not committing on topics
+          # subscribed but not yet assigned.
+          if offsets==None:
+            return super().commit(asynchronous=True)
+          else:
+            return super().commit(offsets=offs,asynchronous=True)
         else:
           raise ke
       except:
