@@ -190,7 +190,7 @@ class KafkaConsumer(Consumer):
         for k in offsets.keys():
           offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
         rv = super().commit(offsets=offs,asynchronous=asynchronous)
-    except KafkaException ke:
+    except KafkaException as ke:
       try:
         if ke.args[0].code() in [KafkaError._NO_OFFSET]:
           # ignore errors about committing offsets (means we have subscribed but not yet been assigned a particular topicpartition)
