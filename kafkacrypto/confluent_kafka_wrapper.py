@@ -182,13 +182,23 @@ class KafkaConsumer(Consumer):
 
   def _commit(self, offsets=None, asynchronous=False):
     self._log.debug("Executing Consumer commit.")
-    if offsets==None:
-      return super().commit(asynchronous=asynchronous)
-    else:
-      offs = []
-      for k in offsets.keys():
-        offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
-      return super().commit(offsets=offs,asynchronous=asynchronous)
+    try:
+      if offsets==None:
+        rv = super().commit(asynchronous=asynchronous)
+      else:
+        offs = []
+        for k in offsets.keys():
+          offs.append(TopicPartitionOffset(k.topic,k.partition,offsets[k].offset))
+        rv = super().commit(offsets=offs,asynchronous=asynchronous)
+    except KafkaException ke:
+      try:
+        if ke.args[0].code() in [KafkaError._NO_OFFSET]:
+          pass # ignore errors about committing offsets (means we have subscribed but not yet been assigned a particular topicpartition)
+        else:
+          raise ke
+      except:
+        raise ke
+    return rv
 
   def commit(self, offsets=None):
     return self._commit(offsets=offsets, asynchronous=False)
