@@ -193,7 +193,9 @@ class KafkaConsumer(Consumer):
     except KafkaException ke:
       try:
         if ke.args[0].code() in [KafkaError._NO_OFFSET]:
-          pass # ignore errors about committing offsets (means we have subscribed but not yet been assigned a particular topicpartition)
+          # ignore errors about committing offsets (means we have subscribed but not yet been assigned a particular topicpartition)
+          # by doing this asynchronously
+          return super().commit(asynchronous=True)
         else:
           raise ke
       except:
