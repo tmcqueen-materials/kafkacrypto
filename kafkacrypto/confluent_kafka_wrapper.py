@@ -258,7 +258,7 @@ class KafkaConsumer(Consumer):
     self._log.info("Executing Consumer assign_and_seek with partoffs=%s.", str(partoffs))
     tps = []
     for tpo in partoffs:
-      if (tpo.offset > 0):
+      if (tpo.offset > 0) or (tpo.offset == OFFSET_BEGINNING) or (tpo.offset == OFFSET_END):
         tps.append(TopicPartitionOffset(tpo.topic, tpo.partition, tpo.offset))
       else:
         tps.append(TopicPartitionOffset(tpo.topic, tpo.partition))

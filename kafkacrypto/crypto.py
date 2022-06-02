@@ -5,7 +5,7 @@ import pysodium
 from time import time,sleep
 import msgpack
 import logging
-from kafkacrypto import TopicPartition,TopicPartitionOffset
+from kafkacrypto import TopicPartition,TopicPartitionOffset,OFFSET_BEGINNING
 import kafka.serializer
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError
@@ -113,7 +113,7 @@ class KafkaCrypto(KafkaCryptoBase):
     # Add management frame TPS
     for ntp in [self.MGMT_TOPIC_CHAINS, self.MGMT_TOPIC_ALLOWLIST, self.MGMT_TOPIC_DENYLIST]:
       self._tps[ntp] = TopicPartition(ntp,0)
-      self._tps_offsets[ntp] = 0
+      self._tps_offsets[ntp] = OFFSET_BEGINNING
       self._tps_updated = True
 
     kvs = self._cryptostore.load_opaque_value('oldkeys',section="crypto")
