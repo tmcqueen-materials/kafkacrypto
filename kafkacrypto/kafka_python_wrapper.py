@@ -17,9 +17,9 @@ class KafkaConsumer(Consumer):
       if (tpo.offset > 0):
         super().seek(TopicPartition(tpo.topic,tpo.partition),tpo.offset)
       elif (tpo.offset == OFFSET_BEGINNING):
-        super().seek_to_beginning([TopicPartition(tpo.topic,tpo.partition)])
+        self.seek_to_beginning([TopicPartition(tpo.topic,tpo.partition)])
       elif (tpo.offset == OFFSET_END):
-        super().seek_to_end([TopicPartition(tpo.topic,tpo.partition)])
+        self.seek_to_end([TopicPartition(tpo.topic,tpo.partition)])
   def subscribe(self, topics=[], pattern=None, listener=None):
     if len(topics)>0 and pattern!=None:
       # kafka-python only allows regex or topics, but not both. So
@@ -34,6 +34,10 @@ class KafkaConsumer(Consumer):
       super().subscribe(pattern=pattern,listener=listener)
     else:
       super().subscribe(topics=topics,pattern=pattern,listener=listener)
+  def seek_to_beginning(self,tps=None):
+    return super().seek_to_beginning(*tps)
+  def seek_to_end(self,tps=None):
+    return super().seek_to_end(*tps)
 
 class KafkaProducer(Producer):
   def poll(self, timeout=0):
