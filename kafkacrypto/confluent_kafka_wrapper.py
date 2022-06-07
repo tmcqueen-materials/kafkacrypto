@@ -272,7 +272,7 @@ class KafkaConsumer(Consumer):
     self._log.debug("Executing Consumer seek_to_beginning.")
     if len(tps) < 1:
       tps = self.assignment()
-    else if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+    elif len(tps) == 1 and not isinstance(tps[0], TopicPartition):
       tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     for tp in tps:
       try:
@@ -284,7 +284,7 @@ class KafkaConsumer(Consumer):
     self._log.debug("Executing Consumer seek_to_end.")
     if len(tps) < 1:
       tps = self.assignment()
-    else if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+    elif len(tps) == 1 and not isinstance(tps[0], TopicPartition):
       tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     for tp in tps:
       try:
