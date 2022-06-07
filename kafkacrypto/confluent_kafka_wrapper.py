@@ -268,10 +268,12 @@ class KafkaConsumer(Consumer):
     self._log.debug("Executing Consumer seek.")
     return super().seek(TopicPartitionOffset(tp.topic, tp.partition, offset))
 
-  def seek_to_beginning(self, tps=None):
+  def seek_to_beginning(self, *tps):
     self._log.debug("Executing Consumer seek_to_beginning.")
-    if tps is None or len(tps) < 1:
+    if len(tps) < 1:
       tps = self.assignment()
+    else if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+      tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     for tp in tps:
       try:
         self.seek(tp, OFFSET_BEGINNING)
@@ -280,8 +282,10 @@ class KafkaConsumer(Consumer):
 
   def seek_to_end(self, tps=None):
     self._log.debug("Executing Consumer seek_to_end.")
-    if tps is None or len(tps) < 1:
+    if len(tps) < 1:
       tps = self.assignment()
+    else if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+      tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     for tp in tps:
       try:
         self.seek(tp, OFFSET_END)

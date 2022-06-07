@@ -34,9 +34,13 @@ class KafkaConsumer(Consumer):
       super().subscribe(pattern=pattern,listener=listener)
     else:
       super().subscribe(topics=topics,pattern=pattern,listener=listener)
-  def seek_to_beginning(self,tps=None):
+  def seek_to_beginning(self,*tps):
+    if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+      tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     return super().seek_to_beginning(*tps)
-  def seek_to_end(self,tps=None):
+  def seek_to_end(self,*tps):
+    if len(tps) == 1 and not isinstance(tps[0], TopicPartition):
+      tps = tps[0] # confluent_kafka all TPs as a single passed list convention
     return super().seek_to_end(*tps)
 
 class KafkaProducer(Producer):
