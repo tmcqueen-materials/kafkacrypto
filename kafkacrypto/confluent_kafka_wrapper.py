@@ -214,7 +214,7 @@ class KafkaConsumer(Consumer):
     # when a caller tries to use that functionality.
     return self._commit(offsets=offsets, asynchronous=True)
 
-  def subscribe(self, topics=None, pattern=None, listener=None):
+  def subscribe(self, topics=None, pattern=None, listener=None, **kwargs):
     self._log.info("Executing Consumer subscribe with topics=%s, pattern=%s, listener=%s", str(topics), str(pattern), str(listener))
     if not topics is None:
       topics = copy.copy(topics)
@@ -226,9 +226,9 @@ class KafkaConsumer(Consumer):
       else:
         topics.append(pattern)
     if listener is not None:
-      return super().subscribe(topics, listener=listener)
+      return super().subscribe(topics, listener=listener, **kwargs)
     else:
-      return super().subscribe(topics)
+      return super().subscribe(topics, **kwargs)
 
   def poll(self, timeout_ms=0, max_records=None):
     rvm = {}
