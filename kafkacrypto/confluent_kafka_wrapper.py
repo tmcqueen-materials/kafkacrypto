@@ -226,7 +226,9 @@ class KafkaConsumer(Consumer):
       else:
         topics.append(pattern)
     if listener is not None:
-      return super().subscribe(topics, listener=listener, **kwargs)
+      # the lambda expressions pass tuples with topic, partition, and offset (instead of just topic and partition),
+      # but that is compatible with the intended API of ConsumerRebalanceListener (see https://github.com/dpkp/kafka-python/blob/f19e4238fb47ae2619f18731f0e0e9a3762cfa11/kafka/consumer/subscription_state.py)
+      return super().subscribe(topics, on_assign=lambda c,tps: listener.on_partitions_assigned(tps), on_revoke=lambda c,tps: listener.on_partitions_revoked(tps), **kwargs)
     else:
       return super().subscribe(topics, **kwargs)
 
