@@ -9,6 +9,8 @@ __all__ = []
 # should be sent.
 #
 import warnings
+from kafkacrypto.utils import kafkacrypto_hash_version
+warnings.warn("KafkaCrypto Version Hash: {}".format(kafkacrypto_hash_version()),category=RuntimeWarning)
 try:
   import confluent_kafka
   from kafkacrypto.confluent_kafka_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset,OffsetAndMetadata,OFFSET_BEGINNING,OFFSET_END

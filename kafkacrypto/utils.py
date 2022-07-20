@@ -10,6 +10,16 @@ from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
 import inspect
+try:
+  from dirhash import dirhash
+except:
+  def dirhash(*args, **kwargs):
+    return 'UNKNOWN'
+from os.path import dirname
+
+# Get a sha256 hash representation of code version
+def kafkacrypto_hash_version():
+  return dirhash(dirname(__file__), "sha256", match=["*.py"])
 
 # generic msgpack packer
 def msgpack_default_pack(x):
