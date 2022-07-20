@@ -3,6 +3,8 @@ import pysodium
 import logging
 import msgpack
 from os import path
+from kafkacrypto.utils import msgpack_default_pack
+from kafkacrypto.keys import SignPublicKey, KEMPublicKey, KEMSecretKey
 
 class CryptoKey(object):
   """Class utilizing file-backed storage to store (long-term) private key
@@ -46,14 +48,16 @@ class CryptoKey(object):
     self.__esk = {}
     self.__epk = {}
     self.__ssk = contents[0]
-    self.__spk = pysodium.crypto_sign_sk_to_pk(self.__ssk)
+    self.__spk = SignPublicKey(pysodium.crypto_sign_sk_to_pk(self.__ssk))
     self.__ek = contents[1]
 
   def get_spk(self):
     return self.__spk
 
   def sign_spk(self, msg):
-    return pysodium.crypto_sign(msg, self.__ssk)
+    if self.__spk.version == 1:
+      return pysodium.crypto_sign(msg, self.__ssk)
+    return None
 
   def get_epk(self, topic, usage):
     #
@@ -81,7 +85,7 @@ class CryptoKey(object):
       if not topic in self.__esk or not usage in self.__esk[topic]:
         return rv
       for pk in pks:
-        rv.append(pysodium.crypto_scalarmult_curve25519(self.__esk[topic][usage],pk))
+        rv.append(self.__esk[topic][usage].complete_kem(KEMPublicKey(pk)))
       if clear:
         self.__remove_esk(topic, usage)
     return rv
@@ -102,8 +106,8 @@ class CryptoKey(object):
     if not topic in self.__esk or not topic in self.__epk:
       self.__esk[topic] = {}
       self.__epk[topic] = {}
-    self.__esk[topic][usage] = pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES)
-    self.__epk[topic][usage] = pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic][usage])
+    self.__esk[topic][usage] = KEMSecretKey(pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES))
+    self.__epk[topic][usage] = KEMPublicKey(pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic][usage]))
 
   def __remove_esk(self, topic, usage):
     # caller must hold self.__eklock prior to calling
@@ -115,5 +119,5 @@ class CryptoKey(object):
     pk,sk = pysodium.crypto_sign_keypair()
     self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
     with open(file, "wb") as f:
-      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
+      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], default=msgpack_default_pack, use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")

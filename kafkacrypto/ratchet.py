@@ -1,5 +1,6 @@
 from kafkacrypto.keygenerator import KeyGenerator
 from kafkacrypto.exceptions import KafkaCryptoRatchetError
+from kafkacrypto.utils import msgpack_default_pack
 import pysodium
 import msgpack
 import logging
@@ -63,7 +64,7 @@ class Ratchet(KeyGenerator):
     # a file I/O object, it should explicitly have atomic writes.
     # We do not use atomic write approaches based on renames due to the possibility of leaving
     # secret key material on disk if temporary files are not appropriately cleaned up.
-    self.__file.write(msgpack.packb([self.__keyidx+1,newkey], use_bin_type=True))
+    self.__file.write(msgpack.packb([self.__keyidx+1,newkey], default=msgpack_default_pack, use_bin_type=True))
     self.__file.flush()
     self.__file.truncate()
     self.__file.seek(0,0)
@@ -87,7 +88,7 @@ class Ratchet(KeyGenerator):
     ki = self.__keyidx
     if node is not None:
       ki = ki.to_bytes(16, byteorder='big')
-      ki = pysodium.crypto_generichash(node + ki)
+      ki = pysodium.crypto_generichash(bytes(node) + ki)
     kg, vg = KeyGenerator.get_key_value_generators(key)
     return (ki, key, kg, vg)
 
@@ -95,7 +96,7 @@ class Ratchet(KeyGenerator):
     self._logger.warning("Initializing new Ratchet file %s", file)
     with open(file, "wb") as f:
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-      f.write(msgpack.packb([0,rb], use_bin_type=True))
+      f.write(msgpack.packb([0,rb], default=msgpack_default_pack, use_bin_type=True))
       _ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
       self._logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
       self._logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())

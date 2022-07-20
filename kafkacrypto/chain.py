@@ -3,7 +3,8 @@ import pysodium
 import msgpack
 import logging
 import re
-from kafkacrypto.utils import str_shim_eq, str_shim_ne
+from kafkacrypto.utils import str_shim_eq, str_shim_ne, msgpack_default_pack
+from kafkacrypto.keys import get_pks, SignPublicKey
 
 class ProcessChainError(ValueError):
   def __init__(self, message, printable):
@@ -28,7 +29,7 @@ def key_in_list(wanted, choices):
     return None
   for c in choices:
     pk = msgpack.unpackb(c,raw=True)
-    if wanted == pk[2]:
+    if wanted == get_pks(pk[2]):
       return c
   return None
 
@@ -167,7 +168,7 @@ def intersect_certs(c1, c2, same_pk):
     poison.append(['usages',poison_usages])
   if pathlen!=None:
     poison.append(['pathlen',pathlen])
-  pk.append(msgpack.packb(poison, use_bin_type=True))
+  pk.append(msgpack.packb(poison, default=msgpack_default_pack, use_bin_type=True))
   # Copy entries 2-infinity
   pk = pk + c2[2:]
   return pk
@@ -180,9 +181,9 @@ def printable_cert(cert):
   try:
     if isinstance(cert[2],(list,tuple)):
       for key in cert[2]:
-        rv.append("Key: " + key.hex())
+        rv.append("Key: " + str(key))
     else:
-      rv.append("Key: " + cert[2].hex())
+      rv.append("Key: " + str(cert[2]))
     rv.append("Timestamp: " + str(cert[0]))
     rv.append("Poison: " + str(msgpack.unpackb(cert[1],raw=True)))
   except:
@@ -235,24 +236,47 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
         if not (pk is None):
           if key_in_list(pk[2],denylist)!=None:
             denylisted = True
-            logging.warning("Chain uses denylisted signing key %s.",pk[2].hex())
+            logging.warning("Chain uses denylisted signing key %s.",str(pk[2]))
             # this is not immediately fatal because a subkey might be allowlisted
           elif key_in_list(pk[2],allowlist)!=None:
             # allowlisted subkey overrides denylist
             denylisted = False
-            pk = intersect_certs(pk,msgpack.unpackb(key_in_list(pk[2],allowlist),raw=True),True)
+            pkn = msgpack.unpackb(key_in_list(pk[2],allowlist),raw=True)
+            pkn[2] = get_pks(pkn[2])
+            pk = intersect_certs(pk,pkn,True)
           try:
-            pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(npk,pk[2]),raw=True),False)
+            pkn = pk[2].crypto_sign_open(npk)
+            pkn = msgpack.unpackb(pkn,raw=True)
+            pkn[2] = get_pks(pkn[2]) # should return a single SignPublicKey except, potentially, at the leaf
+            pk = intersect_certs(pk,pkn,False)
           except:
             raise ValueError("Invalid signing!")
         else:
           pk = msgpack.unpackb(npk,raw=True) # root is unsigned
+          pk[2] = get_pks(pk[2])
         printable.append(str(printable_cert(pk)))
-      # must finally check if leaf key is in allowlist/denylist
-      if key_in_list(pk[2],allowlist)!=None:
-        denylisted = False
-      if key_in_list(pk[2],denylist)!=None:
-        denylisted = True
+      # must finally check if leaf key(s) are in allowlist/denylist
+      # and remove ones that are
+      if isinstance(pk[2],(SignPublicKey,)):
+        if key_in_list(pk[2],allowlist)!=None:
+          denylisted = False
+        if key_in_list(pk[2],denylist)!=None:
+          denylisted = True
+      else:
+        pkn = []
+        for pkone in pk[2]:
+          if isinstance(pkone,(SignPublicKey,)) and key_in_list(pkone,allowlist):
+            # override parent denies
+            denylisted = False
+          if isinstance(pkone,(SignPublicKey,)) and key_in_list(pkone,denylist):
+            # do not use
+            pass
+          else:
+            pkn.append(pkone)
+        if len(pkn) < 1:
+          denylisted = True
+        else:
+          pk[2] = pkn
       # make sure our chain doesn't have breaking denylisted keys
       if denylisted:
         raise ValueError("Chain uses denylisted public key")
@@ -275,8 +299,12 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
     chain = msgpack.unpackb(chain,raw=True)
     if len(chain) == 2:
       pk = msgpack.unpackb(chain[0],raw=True)
-      pk0 = pk[2]
-      pk = intersect_certs(pk,msgpack.unpackb(pysodium.crypto_sign_open(chain[1],pk[2]),raw=True),False)
+      pk0 = get_pks(pk[2])
+      pkn = pk0.crypto_sign_open(chain[1])
+      pkn = msgpack.unpackb(pkn,raw=True)
+      pkn[2] = get_pks(pkn[2])
+      pk = intersect_certs(pk,pkn,False)
+      pk[2] = get_pks(pk[2])
       if pk0 == pk[2] and multimatch(usage, ['key-denylist']) and validate_poison('usages','key-denylist',pk) and validate_poison('pathlen',0,pk):
         return [pk,[str(printable_cert(pk))]]
   except:

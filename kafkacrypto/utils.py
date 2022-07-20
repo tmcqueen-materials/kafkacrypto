@@ -9,6 +9,14 @@ from binascii import unhexlify, hexlify, Error as binasciiError
 from time import time
 from kafkacrypto.exceptions import KafkaCryptoUtilError
 from traceback import format_exception
+import inspect
+
+# generic msgpack packer
+def msgpack_default_pack(x):
+  if hasattr(x, 'msgpack_pack') and inspect.isroutine(x.msgpack_pack):
+    return x.msgpack_pack()
+  else:
+    return x
 
 # *nix specific items
 try:

@@ -9,7 +9,8 @@ from kafkacrypto.cryptostore import CryptoStore
 import msgpack
 import inspect
 import logging
-from kafkacrypto.utils import format_exception_shim
+from kafkacrypto.utils import format_exception_shim, msgpack_default_pack
+from kafkacrypto.keys import get_pks
 
 class KafkaCryptoChainServer(object):
   """ A simple chain server implementation, regularly producing new
@@ -81,14 +82,15 @@ class KafkaCryptoChainServer(object):
       msgpack.unpackb(self._our_chain, raw=False)
     except:
       self._logger.warning("Chain server chain is in legacy format. This should be corrected.")
-      self._our_chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True),use_bin_type=True)
+      self._our_chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True), default=msgpack_default_pack, use_bin_type=True)
+    # allowlist entries are msgpack encoded single certificates (with public key in index 2)
     self._allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (self._allowlist is None):
       self._allowlist = self._allowlist.values()
 
     # Validate
     pk,pkprint = process_chain(self._our_chain,None,None,allowlist=self._allowlist)
-    if (pk[2] != self._cryptokey.get_spk()):
+    if pk[2] != self._cryptokey.get_spk():
       raise KafkaCryptoChainServerError("Chain does not match public key: " + str(pkprint))
 
     # Connect to Kafka
@@ -104,14 +106,15 @@ class KafkaCryptoChainServer(object):
       chainkeys = self._cryptostore.load_section('chainkeys',defaults=False)
       for ck in chainkeys.keys():
         cv = msgpack.unpackb(chainkeys[ck],raw=True)
-        self._logger.info("Checking Key: %s", cv[2])
+        cv[2] = get_pks(cv[2])
+        self._logger.info("Checking Key: %s", str(cv[2]))
         if cv[0]<time()+self._lifetime*self._refresh_fraction:
           try:
             # Time to renew this key
             self._logger.warning("Key expires soon, renewing %s", cv)
-            msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]], use_bin_type=True)
+            msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]], default=msgpack_default_pack, use_bin_type=True)
             chain = self._cryptokey.sign_spk(msg)
-            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=False) + [chain], use_bin_type=True)
+            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=False) + [chain], default=msgpack_default_pack, use_bin_type=True)
             # Validate
             pk,_ = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast

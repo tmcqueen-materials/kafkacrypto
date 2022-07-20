@@ -1,11 +1,12 @@
 from threading import Lock
 from time import time
-from kafkacrypto.utils import format_exception_shim
+from kafkacrypto.utils import format_exception_shim, msgpack_default_pack
 import pysodium
 import msgpack
 import logging
 from kafkacrypto.chain import process_chain, ProcessChainError, key_in_list
 from binascii import unhexlify
+from kafkacrypto.keys import get_pks
 
 class CryptoExchange(object):
   """Class implementing the key exchange protocol used to transmit/receive
@@ -80,25 +81,25 @@ class CryptoExchange(object):
       for i in range(0,len(keyidxs)):
         msg.append(keyidxs[i])
         msg.append(keys[i])
-      msg = msgpack.packb(msg, use_bin_type=True)
+      msg = msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True)
       msg = nonce + pysodium.crypto_secretbox(msg,nonce,ss)
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
-      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']]], use_bin_type=True)
-      msg = msgpack.packb([time()+self.__maxage,poison,eks,[random0,random1],msg], use_bin_type=True)
+      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']]], default=msgpack_default_pack, use_bin_type=True)
+      msg = msgpack.packb([time()+self.__maxage,poison,eks,[random0,random1],msg], default=msgpack_default_pack, use_bin_type=True)
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
       # and finally put as last member of a msgpacked array chaining to ROT
       with self.__spk_chain_lock:
         tchain = self.__spk_chain.copy()
         if (len(tchain) == 0):
-          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']],['pathlen',1]], use_bin_type=True)
-          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], use_bin_type=True)
+          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
+          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], default=msgpack_default_pack, use_bin_type=True)
           _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
           tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-          provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)], use_bin_type=True)
+          provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()], default=msgpack_default_pack),self.__cryptokey.sign_spk(lastcert)], default=msgpack_default_pack, use_bin_type=True)
           self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
       tchain.append(msg)
-      msg = msgpack.packb(tchain, use_bin_type=True)
+      msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       return None
@@ -166,8 +167,8 @@ class CryptoExchange(object):
         epk = self.__cryptokey.get_epk(topic,'decrypt_keys')
       random0 = pysodium.randombytes(self.__randombytes)
       # we allow either direct-to-producer or via-controller key establishment
-      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], use_bin_type=True)
-      msg = msgpack.packb([time()+self.__maxage,poison,epk,random0], use_bin_type=True)
+      poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], default=msgpack_default_pack, use_bin_type=True)
+      msg = msgpack.packb([time()+self.__maxage,poison,epk,random0], default=msgpack_default_pack, use_bin_type=True)
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
       # and finally put as last member of a msgpacked array chaining to ROT
@@ -176,14 +177,14 @@ class CryptoExchange(object):
         if (len(tchain) == 0):
           # Use default for direct use when empty.
           self.__spk_direct_request = True
-          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], use_bin_type=True)
-          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], use_bin_type=True)
+          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
+          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], default=msgpack_default_pack, use_bin_type=True)
        	  _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
           tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-       	  provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)], use_bin_type=True)
+       	  provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)], default=msgpack_default_pack, use_bin_type=True)
           self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
       tchain.append(msg)
-      msg = msgpack.packb(tchain, use_bin_type=True)
+      msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
       return msg
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
@@ -196,15 +197,16 @@ class CryptoExchange(object):
       pk,_ = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
+        apk[2] = get_pks(apk[2])
         if pk[2] != apk[2]:
-          self._logger.info("Mismatch in keys for allowlist %s vs %s.",pk[2].hex(),apk[2].hex())
+          self._logger.info("Mismatch in keys for allowlist %s vs %s.",str(pk[2]),str(apk[2]))
           raise ValueError("Mismatch in keys for allowlist.")
-        if key_in_list(pk[3],self.__allowlist)==None:
+        if key_in_list(apk[2],self.__allowlist)==None:
           self.__allowlist.append(pk[3])
         else:
-          self._logger.info("Key %s already in allowlist",pk[2].hex())
+          self._logger.info("Key %s already in allowlist",str(apk[2]))
           raise ValueError("Key already in allowlist!")
-        self._logger.warning("Added key %s to allowlist",pk[2].hex())
+        self._logger.warning("Added key %s to allowlist",str(apk[2]))
         return pk[3]
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
@@ -218,15 +220,16 @@ class CryptoExchange(object):
       pk,_ = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
+        apk[2] = get_pks(apk[2])
         if pk[2] != apk[2]:
-          self._logger.info("Mismatch in keys for denylist %s vs %s.",pk[2].hex(),apk[2].hex())
+          self._logger.info("Mismatch in keys for denylist %s vs %s.",str(pk[2]),str(apk[2]))
           raise ValueError("Mismatch in keys for denylist.")
-        if key_in_list(pk[3],self.__denylist)==None:
+        if key_in_list(apk[2],self.__denylist)==None:
           self.__denylist.append(pk[3])
         else:
-          self._logger.info("Key %s already in denylist",pk[2].hex())
+          self._logger.info("Key %s already in denylist",str(pk[2]))
           raise ValueError("Key already in denylist!")
-        self._logger.warning("Added key %s to denylist",pk[2].hex())
+        self._logger.warning("Added key %s to denylist",str(pk[2]))
        	return pk[3]
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))

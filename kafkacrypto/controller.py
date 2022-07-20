@@ -65,10 +65,12 @@ class KafkaCryptoController(KafkaCryptoBase):
           k = pysodium.crypto_hash_sha256(provs[p])
           self._cryptostore.store_value(k,provs[p],section='allowlist')
           self._cryptostore.store_value(p,None,section='provisioners')
+      # allowlist entries are msgpack encoded single certificates (with public key in index 2)
       allowlist = self._cryptostore.load_section('allowlist',defaults=False)
       if not (allowlist is None):
         allowlist = allowlist.values()
       denylist = self._cryptostore.load_section('denylist',defaults=False)
+      # denylist entries are msgpack encoded single certificates (with public key in index 2)
       if not (denylist is None):
         denylist = denylist.values()
       provisioners = Provisioners(allowlist=allowlist, denylist=denylist)
@@ -122,7 +124,7 @@ class KafkaCryptoController(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
-            if msg.key == self._cryptokey.get_spk():
+            if msg.key == bytes(self._cryptokey.get_spk()):
               self._logger.debug("Key matches ours. Validating Chain.")
               newchain = self._cryptoexchange.replace_spk_chain(msg.value)
               if not (newchain is None):

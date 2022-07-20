@@ -12,7 +12,7 @@ from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError
 from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.keygenerator import KeyGenerator
-from kafkacrypto.utils import log_limited
+from kafkacrypto.utils import log_limited, msgpack_default_pack
 
 class KafkaCrypto(KafkaCryptoBase):
   """Class handling the sending and receiving of encrypted messages.
@@ -193,7 +193,7 @@ class KafkaCrypto(KafkaCryptoBase):
                     ki.append(ski)
                     s.append(sk['secret'])
                 if len(ki) > 0:
-                  k = msgpack.packb(ki, use_bin_type=True)
+                  k = msgpack.packb(ki, default=msgpack_default_pack, use_bin_type=True)
                   v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
                   if not (v is None):
                     self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
@@ -230,7 +230,7 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
-            if msg.key == self._cryptokey.get_spk():
+            if msg.key == bytes(self._cryptokey.get_spk()):
               self._logger.debug("Key matches ours. Validating Chain.")
               newchain = self._cryptoexchange.replace_spk_chain(msg.value)
               if not (newchain is None):
@@ -290,7 +290,7 @@ class KafkaCrypto(KafkaCryptoBase):
           kis = list(self._cwaits[root].keys())
           if len(kis) > 0:
             if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
-              k = msgpack.packb(kis, use_bin_type=True)
+              k = msgpack.packb(kis, default=msgpack_default_pack, use_bin_type=True)
               v = self._cryptoexchange.signed_epk(root)
               if not (k is None) and not (v is None):
                 self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
@@ -349,7 +349,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # stored pgens do not have generators as they should never be used for active production
             # (but secret stays around so lost consumers can catch up)
         self._logger.info("Saving %s old production keys.", len(kvs['pgens']))
-        self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs, use_bin_type=True),section="crypto")
+        self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs, default=msgpack_default_pack, use_bin_type=True),section="crypto")
       self._lock.release()
   
       # Finally, loop back to poll again
@@ -393,7 +393,7 @@ class KafkaCrypto(KafkaCryptoBase):
         gen = pgen[self._kv]
         salt = gen.salt()
         key,nonce = gen.generate()
-        msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)], use_bin_type=True)
+        msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)], default=msgpack_default_pack, use_bin_type=True)
       except Exception as e:
         self._parent._logger.warning("".join(format_exception_shim(e)))
       finally:
