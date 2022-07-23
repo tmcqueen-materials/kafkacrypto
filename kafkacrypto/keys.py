@@ -150,7 +150,7 @@ class KEMSecretKey(object):
   version = 0
   keys = b''
   def __init__(self, pk0):
-    if isinstance(pk0, (KEMSecretKey,SignPublicKey)): # we allow conversion of implicit version 1 keys between Sign and KEM types
+    if isinstance(pk0, (KEMSecretKey,)):
       self.version = pk0.version
       self.keys = pk0.keys
     elif isinstance(pk0, (list,tuple)):
@@ -177,7 +177,7 @@ class KEMSecretKey(object):
     else:
       return "(Unparsable)"
   def __eq__(self, pk2):
-    if self.version == pk2.version:
+    if isinstance(pk2, (KEMSecretKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
         return True
     return False
