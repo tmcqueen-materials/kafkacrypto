@@ -14,7 +14,7 @@ try:
   from dirhash import dirhash
 except:
   def dirhash(*args, **kwargs):
-    return 'UNKNOWN'
+    return 'UNKNOWN (is dirhash installed?)'
 from os.path import dirname
 
 # Get a sha256 hash representation of code version
