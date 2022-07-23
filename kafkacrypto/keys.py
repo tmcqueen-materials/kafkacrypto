@@ -67,7 +67,7 @@ class SignPublicKey(object):
     else:
       return "(Unparsable)"
   def __eq__(self, pk2):
-    if self.version == pk2.version:
+    if isinstance(pk2, (SignPublicKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
         return True
     return False
@@ -124,7 +124,7 @@ class KEMPublicKey(object):
     else:
       return "(Unparsable)"
   def __eq__(self, pk2):
-    if self.version == pk2.version:
+    if isinstance(pk2, (KEMPublicKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
         return True
     return False
