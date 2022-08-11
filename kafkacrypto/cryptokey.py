@@ -106,7 +106,7 @@ class CryptoKey(object):
       usage = usage.decode('utf-8')
     with self.__eklock:
       if not topic in self.__esk or not usage in self.__esk[topic]:
-        return rv
+        return rv,rvp
       for pk in pks:
         kpk = KEMPublicKey(pk)
         if kpk.version in self.__esk[topic][usage]:
