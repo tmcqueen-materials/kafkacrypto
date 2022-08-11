@@ -147,7 +147,7 @@ class CryptoExchange(object):
           pass
         else:
           # clear the esk/epk we just used
-          self.__cryptokey.use_epk(topic, 'decrypt_keys', [])
+          self.__cryptokey.use_epks(topic, 'decrypt_keys', [])
           return rvs
       raise ValueError
     except Exception as e:
