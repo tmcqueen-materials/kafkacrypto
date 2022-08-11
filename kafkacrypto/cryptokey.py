@@ -106,7 +106,7 @@ class CryptoKey(object):
       usage = usage.decode('utf-8')
     with self.__eklock:
       if not topic in self.__esk or not usage in self.__esk[topic]:
-        return rv,rvp
+        return (rv,rvp)
       for pk in pks:
         kpk = KEMPublicKey(pk)
         if kpk.version in self.__esk[topic][usage]:
@@ -114,7 +114,7 @@ class CryptoKey(object):
           rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.version]))
       if clear:
         self.__remove_esk(topic, usage)
-    return rv,rvp
+    return (rv,rvp)
 
   def wrap_opaque(self, crypto_opaque):
     nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)

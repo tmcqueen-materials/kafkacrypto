@@ -49,7 +49,7 @@ class SignPublicKey(object):
       self.version = pk0.version
       self.keys = pk0.keys
     elif isinstance(pk0, (list,tuple)):
-      if isinstance(pk0[0], (int,)):
+      if isinstance(pk0[0], (int,)) and pk0[0] == 1: # currently only version 1 supported
         self.version = pk0[0]
         self.keys = pk0[1]
       else:
@@ -104,7 +104,10 @@ class KEMPublicKey(object):
   version = 0
   keys = b''
   def __init__(self, pk0):
-    if isinstance(pk0, (KEMPublicKey,SignPublicKey)) and pk0.version == 1: # we allow conversion of implicit version 1 keys between Sign and KEM types
+    if isinstance(pk0, (SignPublicKey,)) and pk0.version == 1: # we allow conversion of implicit version 1 keys between Sign and KEM types
+      self.version = pk0.version
+      self.keys = pk0.keys
+    elif isinstance(pk0, (KEMPublicKey,)):
       self.version = pk0.version
       self.keys = pk0.keys
     elif isinstance(pk0, (KEMSecretKey,)): # generating public key from secret key is allowed
@@ -119,7 +122,7 @@ class KEMPublicKey(object):
         self.version = 1
         self.keys = pysodium.crypto_scalarmult_curve25519_base(pk0.keys)
     elif isinstance(pk0, (list,tuple)):
-      if isinstance(pk0[0], (int,)):
+      if isinstance(pk0[0], (int,)) and (pk0[0] == 1 or pk0[0] == 2 or pk0[0] == 3): # Versions 1-3 only
         self.version = pk0[0]
         self.keys = pk0[1]
       else:
@@ -179,7 +182,7 @@ class KEMSecretKey(object):
       self.version = pk0.version
       self.keys = pk0.keys
     elif isinstance(pk0, (list,tuple)):
-      if isinstance(pk0[0], (int,)):
+      if isinstance(pk0[0], (int,)) and (pk0[0] == 1 or pk0[0] == 2 or pk0[0] == 3): # versions 1-3 only
         self.version = pk0[0]
         self.keys = pk0[1]
         if self.version == 2 or self.version == 3:
@@ -245,14 +248,17 @@ class KEMSecretKey(object):
     if self.version == 1 and pubkey.version == 1:
       return pysodium.crypto_scalarmult_curve25519(self.keys,pubkey.keys)
     elif (self.version == 2 or self.version == 3) and pubkey.version == 2:
-      part0 = pysodium.crypto_scalarmult_curve25519(self.keys[0],pubkeys.keys[0])
-      ct, part1 = self.sntrup761.encap_secret(pubkeys.keys[1])
-      self.version = 3
-      self.keys[1][2] = ct
+      part0 = pysodium.crypto_scalarmult_curve25519(self.keys[0],pubkey.keys[0])
+      ct, part1 = self.sntrup761.encap_secret(pubkey.keys[1])
+      if self.version == 2:
+        self.version = 3
+        self.keys[1].append(ct)
+      else: # self.version is already 3
+        self.keys[1][2] = ct
       return part0 + part1
     elif self.version == 2 and pubkey.version == 3: # cannot do 3 with 3 since we don't have partner pk
-      part0 = pysodium.crypto_scalarmult_curve25519(self.keys[0],pubkeys.keys[0])
-      part1 = self.sntrup761.decap_secret(pubkeys.keys[1])
+      part0 = pysodium.crypto_scalarmult_curve25519(self.keys[0],pubkey.keys[0])
+      part1 = self.sntrup761.decap_secret(pubkey.keys[1])
       return part0 + part1
     else:
       raise SecretKeyError()
