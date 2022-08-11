@@ -70,6 +70,8 @@ class CryptoExchange(object):
       if not isinstance(pk[2], (list,)):
         # legacy format for key requests
         pks = [pk[2]]
+      else:
+        pks = pk[2]
       # (re)generate and then immediately use epks
       self.__cryptokey.get_epks(topic,'encrypt_keys')
       eks,epk = self.__cryptokey.use_epks(topic,'encrypt_keys',pks)
