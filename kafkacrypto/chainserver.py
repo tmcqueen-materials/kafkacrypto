@@ -31,7 +31,7 @@ class KafkaCryptoChainServer(object):
                             set_cryptokey)
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
-                            (get/sign_spk,get/use_epk,
+                            (get/sign_spk,get/use_epks,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
@@ -64,7 +64,7 @@ class KafkaCryptoChainServer(object):
     if (isinstance(cryptokey,(str))):
       cryptokey = CryptoKey(file=cryptokey)
     if (not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
-        not hasattr(cryptokey, 'get_epk') or not inspect.isroutine(cryptokey.get_epk) or not hasattr(cryptokey, 'use_epk') or not inspect.isroutine(cryptokey.use_epk) or
+        not hasattr(cryptokey, 'get_epks') or not inspect.isroutine(cryptokey.get_epks) or not hasattr(cryptokey, 'use_epks') or not inspect.isroutine(cryptokey.use_epks) or
         not hasattr(cryptokey, 'wrap_opaque') or not inspect.isroutine(cryptokey.wrap_opaque) or not hasattr(cryptokey, 'unwrap_opaque') or not inspect.isroutine(cryptokey.unwrap_opaque)):
       raise KafkaCryptoChainServerError("Invalid cryptokey source supplied!")
     self._cryptokey = cryptokey

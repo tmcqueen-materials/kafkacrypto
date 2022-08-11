@@ -24,6 +24,12 @@ except ImportError:
   # fallback to kafka-python
   warnings.warn("No confluent_kafka package found. Falling back to kafka-python. It is highly, recommended that you install confluent_kafka and librdkafka for better performance, especially with large messages.",category=RuntimeWarning)
   from kafkacrypto.kafka_python_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset,OffsetAndMetadata,OFFSET_BEGINNING,OFFSET_END
+try:
+  # See keys.py
+  import oqs
+  warnings.warn("liboqs-python found! Enabling support for post-quantum cryptography.",category=RuntimeWarning)
+except ImportError:
+  pass
 del warnings
 
 __all__.extend(['KafkaConsumer', 'KafkaProducer', 'TopicPartition', 'TopicPartitionOffset', 'OffsetAndMetadata', 'OFFSET_BEGINNING', 'OFFSET_END'])

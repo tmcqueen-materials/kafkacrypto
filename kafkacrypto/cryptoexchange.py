@@ -14,8 +14,8 @@ class CryptoExchange(object):
 
   Keyword Arguments:
             chain (bytes): Certificate chain for our signing public key.
-          cryptokey (obj): Object implementing the necessary public/private 
-                           key functions (get/sign_spk,get/use_epk).
+          cryptokey (obj): Object implementing the necessary public/private
+                           key functions (get/sign_spk,get/use_epks).
              maxage (int): Maximum validity time for sent messages in sec.
                            Optional, default: 86400 (= 1 day)
         randombytes (int): Number of random bytes to add in constructing
@@ -67,11 +67,13 @@ class CryptoExchange(object):
       with self.__allowdenylist_lock:
         pk,_ = process_chain(msgval,topic,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
       # Construct shared secret as sha256(topic || random0 || random1 || our_private*their_public)
-      epk = self.__cryptokey.get_epk(topic, 'encrypt_keys')
-      pks = [pk[2]]
-      eks = self.__cryptokey.use_epk(topic, 'encrypt_keys',pks)
+      if not isinstance(pk[2], (list,)):
+        # legacy format for key requests
+        pks = [pk[2]]
+      # (re)generate and then immediately use epks
+      self.__cryptokey.get_epks(topic,'encrypt_keys')
+      eks,epk = self.__cryptokey.use_epks(topic,'encrypt_keys',pks)
       ek = eks[0]
-      eks[0] = epk
       random0 = pk[3]
       random1 = pysodium.randombytes(self.__randombytes)
       ss = pysodium.crypto_hash_sha256(topic.encode('utf-8') + random0 + random1 + ek)[0:pysodium.crypto_secretbox_KEYBYTES]
@@ -85,7 +87,7 @@ class CryptoExchange(object):
       msg = nonce + pysodium.crypto_secretbox(msg,nonce,ss)
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
       poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']]], default=msgpack_default_pack, use_bin_type=True)
-      msg = msgpack.packb([time()+self.__maxage,poison,eks,[random0,random1],msg], default=msgpack_default_pack, use_bin_type=True)
+      msg = msgpack.packb([time()+self.__maxage,poison,[epk[0]],[random0,random1],msg], default=msgpack_default_pack, use_bin_type=True)
       # and signed with our signing key
       msg = self.__cryptokey.sign_spk(msg)
       # and finally put as last member of a msgpacked array chaining to ROT
@@ -129,7 +131,7 @@ class CryptoExchange(object):
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
       msg = pk[4][pysodium.crypto_secretbox_NONCEBYTES:]
-      eks = self.__cryptokey.use_epk(topic, 'decrypt_keys', pk[2], clear=False)
+      eks,_ = self.__cryptokey.use_epks(topic, 'decrypt_keys', pk[2], clear=False)
       for ck in eks:
         # Construct candidate shared secrets as sha256(topic || random0 || random1 || our_private*their_public)
         ss = pysodium.crypto_hash_sha256(topic.encode('utf-8') + random0 + random1 + ck)[0:pysodium.crypto_secretbox_KEYBYTES]
@@ -153,7 +155,7 @@ class CryptoExchange(object):
       pass
     return None
 
-  def signed_epk(self, topic, epk=None):
+  def signed_epks(self, topic, epks=None):
     if (isinstance(topic,(bytes,bytearray))):
       self._logger.debug("passed a topic in bytes (should be string)")
       topic = topic.decode('utf-8')
@@ -163,29 +165,33 @@ class CryptoExchange(object):
     # with a fresh random value, and with the chain to the ROT prepended.
     #
     try:
-      if epk is None:
-        epk = self.__cryptokey.get_epk(topic,'decrypt_keys')
+      if epks is None:
+        epks = self.__cryptokey.get_epks(topic,'decrypt_keys')
       random0 = pysodium.randombytes(self.__randombytes)
       # we allow either direct-to-producer or via-controller key establishment
       poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], default=msgpack_default_pack, use_bin_type=True)
-      msg = msgpack.packb([time()+self.__maxage,poison,epk,random0], default=msgpack_default_pack, use_bin_type=True)
-      # and signed with our signing key
-      msg = self.__cryptokey.sign_spk(msg)
-      # and finally put as last member of a msgpacked array chaining to ROT
-      with self.__spk_chain_lock:
-        tchain = self.__spk_chain.copy()
-        if (len(tchain) == 0):
-          # Use default for direct use when empty.
-          self.__spk_direct_request = True
-          poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
-          lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], default=msgpack_default_pack, use_bin_type=True)
-       	  _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
-          tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-       	  provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)], default=msgpack_default_pack, use_bin_type=True)
-          self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
-      tchain.append(msg)
-      msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
-      return msg
+      rv = []
+      for epk in epks:
+        # create message for each independent set of epks
+        msg = msgpack.packb([time()+self.__maxage,poison,epk,random0], default=msgpack_default_pack, use_bin_type=True)
+        # and signed with our signing key
+        msg = self.__cryptokey.sign_spk(msg)
+        # and finally put as last member of a msgpacked array chaining to ROT
+        with self.__spk_chain_lock:
+          tchain = self.__spk_chain.copy()
+          if (len(tchain) == 0):
+            # Use default for direct use when empty.
+            self.__spk_direct_request = True
+            poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
+            lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk()], default=msgpack_default_pack, use_bin_type=True)
+            _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
+            tchain.append(pysodium.crypto_sign(lastcert,tempsk))
+            provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk()]),self.__cryptokey.sign_spk(lastcert)], default=msgpack_default_pack, use_bin_type=True)
+            self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
+        tchain.append(msg)
+        msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
+        rv.append(msg)
+      return rv
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       pass

@@ -38,7 +38,7 @@ class Provisioners(object):
           raise ProcessChainError("Request did not validate: ", pkprint)
         else:
           raise ValueError("Request did not validate!")
-      msg = cryptoexchange.signed_epk(topic, epk=pk[2])
+      msg = cryptoexchange.signed_epks(topic, epks=[pk[2]])[0]
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       return (None, None)

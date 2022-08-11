@@ -21,17 +21,20 @@ class CryptoKey(object):
   #       __spk: signing public key
   #       __ssk: signing private (secret) key
   #        __ek: private key for (un)wrapping opaque bytes
+  #  __ephk_legacy: if true, and if version 1 included in __ephk_ver, then send
+  #                 new key requests in legacy format (replies to legacy format
+  #                 requests are not affected by this setting)
+  #  __ephk_ver: ephemeral key exchange key type (KEMPublic/SecretKey version(s))
   # Generated ephemerially, on demand:
-  #       __epk: dict of encrypting public keys (by topic and usage)
-  #       __esk: dict of encrypting private (secret) keys (by topic and usage)
+  #       __esk: dict of encrypting private (secret) keys (by topic and usage and version)
   #
   def __init__(self, file):
     self._logger = logging.getLogger(__name__)
     if (isinstance(file, (str))):
       if (not path.exists(file)):
         self.__init_cryptokey(file)
-      with open(file, 'rb') as file:
-        data = file.read()
+      with open(file, 'rb') as f:
+        data = f.read()
     else:
       data = file.read()
     datalen = len(data)
@@ -44,12 +47,23 @@ class CryptoKey(object):
         data = data[:-1]
     if len(data) != datalen:
       self._logger.warning("Cryptokey file had extraneous bytes at end, attempting load anyways.")
+    if len(contents) == 2:
+      # unversioned legacy format, so update
+      self._logger.warning("Cryptokey file is unversioned.")
+      contents = [1] + contents + [True,[1]]
+      if (isinstance(file, (str))):
+        self._logger.warning("Cryptokey file updating from unversioned to versioned format.")
+        with open(file, 'wb') as f:
+          f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
     self.__eklock = Lock()
     self.__esk = {}
-    self.__epk = {}
-    self.__ssk = contents[0]
-    self.__spk = SignPublicKey(pysodium.crypto_sign_sk_to_pk(self.__ssk))
-    self.__ek = contents[1]
+    if contents[0] == 1:
+      # version 1
+      self.__ssk = contents[1]
+      self.__spk = SignPublicKey(pysodium.crypto_sign_sk_to_pk(self.__ssk))
+      self.__ek = contents[2]
+      self.__ephk_legacy = contents[3]
+      self.__ephk_ver = contents[4]
 
   def get_spk(self):
     return self.__spk
@@ -59,9 +73,10 @@ class CryptoKey(object):
       return pysodium.crypto_sign(msg, self.__ssk)
     return None
 
-  def get_epk(self, topic, usage):
+  def get_epks(self, topic, usage):
     #
-    # returns the public key of a new ephemeral encryption key for the specified topic
+    # returns the public key(s) of a new ephemeral encryption key for the specified topic
+    # each returned value of the list is to be sent in a single message
     #
     if (isinstance(topic,(bytes,bytearray))):
       self._logger.debug("passed a topic in bytes (should be string)")
@@ -71,10 +86,18 @@ class CryptoKey(object):
       usage = usage.decode('utf-8')
     with self.__eklock:
       self.__generate_esk(topic, usage)
-      return self.__epk[topic][usage]
+      rv0 = []
+      rv = []
+      for v in self.__esk[topic][usage]:
+        rv0.append(KEMPublicKey(self.__esk[topic][usage][v]))
+      rv.append(rv0)
+      if self.__ephk_legacy and 1 in self.__esk[topic][usage]:
+        rv.append(KEMPublicKey(self.__esk[topic][usage][1]))
+      return rv
 
-  def use_epk(self, topic, usage, pks, clear=True):
+  def use_epks(self, topic, usage, pks, clear=True):
     rv = []
+    rvp = []
     if (isinstance(topic,(bytes,bytearray))):
       self._logger.debug("passed a topic in bytes (should be string)")
       topic = topic.decode('utf-8')
@@ -85,10 +108,13 @@ class CryptoKey(object):
       if not topic in self.__esk or not usage in self.__esk[topic]:
         return rv
       for pk in pks:
-        rv.append(self.__esk[topic][usage].complete_kem(KEMPublicKey(pk)))
+        kpk = KEMPublicKey(pk)
+        if kpk.version in self.__esk[topic][usage]:
+          rv.append(self.__esk[topic][usage][kpk.version].complete_kem(kpk))
+          rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.version]))
       if clear:
         self.__remove_esk(topic, usage)
-    return rv
+    return rv,rvp
 
   def wrap_opaque(self, crypto_opaque):
     nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)
@@ -103,21 +129,21 @@ class CryptoKey(object):
   def __generate_esk(self, topic, usage):
     # ephemeral keys are use once only, so always ok to overwrite
     # caller must hold self.__eklock prior to calling
-    if not topic in self.__esk or not topic in self.__epk:
+    if not topic in self.__esk:
       self.__esk[topic] = {}
-      self.__epk[topic] = {}
-    self.__esk[topic][usage] = KEMSecretKey(pysodium.randombytes(pysodium.crypto_scalarmult_curve25519_BYTES))
-    self.__epk[topic][usage] = KEMPublicKey(pysodium.crypto_scalarmult_curve25519_base(self.__esk[topic][usage]))
+    if not usage in self.__esk[topic]:
+      self.__esk[topic][usage] = {}
+    for v in self.__ephk_ver:
+      self.__esk[topic][usage][v] = KEMSecretKey(v)
 
   def __remove_esk(self, topic, usage):
     # caller must hold self.__eklock prior to calling
     self.__esk[topic].pop(usage)
-    self.__epk[topic].pop(usage)
 
   def __init_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
     pk,sk = pysodium.crypto_sign_keypair()
     self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
     with open(file, "wb") as f:
-      f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], default=msgpack_default_pack, use_bin_type=True))
+      f.write(msgpack.packb([1,sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")

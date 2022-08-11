@@ -38,7 +38,7 @@ class KafkaCrypto(KafkaCryptoBase):
                             Only closed if opened by us.
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
-                            (get/sign_spk,get/use_epk,
+                            (get/sign_spk,get/use_epks,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
@@ -291,13 +291,14 @@ class KafkaCrypto(KafkaCryptoBase):
           if len(kis) > 0:
             if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
               k = msgpack.packb(kis, default=msgpack_default_pack, use_bin_type=True)
-              v = self._cryptoexchange.signed_epk(root)
-              if not (k is None) and not (v is None):
-                self._logger.info("Sending new subscribe request for root=%s, msgkey=%s", root, k)
-                self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v)
-                if self._cryptoexchange.direct_request_spk_chain():
-                  # if it may succeed, send directly as well
-                  self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v)
+              v2 = self._cryptoexchange.signed_epks(root)
+              if not (k is None) and not (v2 is None):
+                self._logger.info("Sending new subscribe request(s) for root=%s, msgkey=%s", root, k)
+                for v in v2:
+                  self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v)
+                  if self._cryptoexchange.direct_request_spk_chain():
+                    # if it may succeed, send directly as well
+                    self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v)
                 self._subs_last[root] = [time(),kis]
               else:
                 self._logger.info("Failed to send new subscribe request for root=%s", root)
