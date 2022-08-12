@@ -109,9 +109,9 @@ class CryptoKey(object):
         return (rv,rvp)
       for pk in pks:
         kpk = KEMPublicKey(pk)
-        if kpk.version in self.__esk[topic][usage]:
-          rv.append(self.__esk[topic][usage][kpk.version].complete_kem(kpk))
-          rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.version]))
+        if kpk.get_esk_version() in self.__esk[topic][usage]:
+          rv.append(self.__esk[topic][usage][kpk.get_esk_version()].complete_kem(kpk))
+          rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.get_esk_version()]))
       if clear:
         self.__remove_esk(topic, usage)
     return (rv,rvp)

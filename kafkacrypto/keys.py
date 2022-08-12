@@ -163,6 +163,11 @@ class KEMPublicKey(object):
     return self._as_parameter_[index]
   def __iter__(self):
     return iter([self.version, self.keys])
+  def get_esk_version(self):
+    if self.version == 3:
+      return 2
+    else:
+      return self.version
   def msgpack_pack(self):
     if self.version == 1:
       return self.keys

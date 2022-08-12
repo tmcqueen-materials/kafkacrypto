@@ -80,6 +80,7 @@ class CryptoExchange(object):
       self.__cryptokey.get_epks(topic,'encrypt_keys')
       eks,epk = self.__cryptokey.use_epks(topic,'encrypt_keys',pks)
       if len(eks) < 1:
+        self._logger.info("No compatible key exchange versions found.")
         return None # No compatible versions
       ek = eks[0]
       random0 = pk[3]
@@ -163,7 +164,7 @@ class CryptoExchange(object):
           with self.__randoms_lock:
             self.__randoms[topic].remove(random0)
           return rvs
-      self._logger.info("no valid decryption keys computed in decrypt_keys")
+      self._logger.info("no valid decryption keys computed in decrypt_keys, %s tried", str(len(eks)))
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       pass
