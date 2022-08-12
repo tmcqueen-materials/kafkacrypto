@@ -13,7 +13,7 @@ class KafkaCryptoController(KafkaCryptoBase):
   """ A simple controller implementation, resigning requests for keys
       for a particular resource, using our key (signed by ROT), if
       request is signed by a known provisioner. To function properly,
-      and not miss messages, the provided KafkaConsumer must be 
+      and not miss messages, the provided KafkaConsumer must be
       configured so that client_id and group_id are both set to nodeID,
       and that enable_auto_commit (automatic committing) is False.
 
@@ -23,7 +23,7 @@ class KafkaCryptoController(KafkaCryptoBase):
                             handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.
-        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for      
+        kc (KafkaConsumer): Pre-initialized KafkaConsumer, ready for
        	       	       	    handling crypto-keying messages. Should
                             not be used elsewhere, as this class
                             changes some configuration values.

@@ -23,7 +23,8 @@ class Provisioners(object):
       topic = topic.decode('utf-8')
     #
     # msgval should be a msgpacked chain chaining to a provisioner.
-    # The last item in the array is the encrypted public key to retransmit.
+    # The third item in the array is the public key to retransmit. The fourth item is
+    # random0.
     #
     try:
       pk = None
@@ -38,7 +39,8 @@ class Provisioners(object):
           raise ProcessChainError("Request did not validate: ", pkprint)
         else:
           raise ValueError("Request did not validate!")
-      msg = cryptoexchange.signed_epks(topic, epks=[pk[2]])[0]
+      # TODO: can add sanity checking of random0 and the public key if desired.
+      msg = cryptoexchange.signed_epks(topic, epks=[pk[2]], random0=pk[3])[0]
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       return (None, None)

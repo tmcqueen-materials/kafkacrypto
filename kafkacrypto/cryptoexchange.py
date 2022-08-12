@@ -136,13 +136,8 @@ class CryptoExchange(object):
         else:
           raise ValueError("Unexpected number of chain elements!")
       random0 = pk[3][0]
-      random_idx = -1
       with self.__randoms_lock:
-        if topic in self.__randoms:
-          for i in range(0,len(self.__randoms[topic])):
-            if self.__randoms[topic][i] == random0:
-              random_idx = i
-        if not (topic in self.__randoms) or random_idx < 0:
+        if not (topic in self.__randoms) or not (random0 in self.__randoms[topic]):
           self._logger.info("unknown (or already used) random0 value in decrypt_keys: %s vs %s", str(random0), str(self.__randoms[topic]) if topic in self.__randoms else "")
           return None
       random1 = pk[3][1]
@@ -166,7 +161,7 @@ class CryptoExchange(object):
           # clear the esk/epk we just used
           self.__cryptokey.use_epks(topic, 'decrypt_keys', [])
           with self.__randoms_lock:
-            self.__randoms[topic].pop(random_idx)
+            self.__randoms[topic].remove(random0)
           return rvs
       self._logger.info("no valid decryption keys computed in decrypt_keys")
     except Exception as e:
@@ -174,7 +169,7 @@ class CryptoExchange(object):
       pass
     return None
 
-  def signed_epks(self, topic, epks=None):
+  def signed_epks(self, topic, epks=None, random0=None):
     if (isinstance(topic,(bytes,bytearray))):
       self._logger.debug("passed a topic in bytes (should be string)")
       topic = topic.decode('utf-8')
@@ -186,11 +181,12 @@ class CryptoExchange(object):
     try:
       if epks is None:
         epks = self.__cryptokey.get_epks(topic,'decrypt_keys')
-      random0 = pysodium.randombytes(self.__randombytes)
-      with self.__randoms_lock:
-        if not (topic in self.__randoms):
-          self.__randoms[topic] = []
-        self.__randoms[topic].append(random0) # store to check later
+      if random0 is None:
+        random0 = pysodium.randombytes(self.__randombytes)
+        with self.__randoms_lock:
+          if not (topic in self.__randoms):
+            self.__randoms[topic] = []
+          self.__randoms[topic].append(random0) # store to check later
       # we allow either direct-to-producer or via-controller key establishment
       poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], default=msgpack_default_pack, use_bin_type=True)
       rv = []
