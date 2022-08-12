@@ -10,7 +10,7 @@ from kafkacrypto.keys import get_pks
 
 class CryptoExchange(object):
   """Class implementing the key exchange protocol used to transmit/receive
-     current data encryption keys. 
+     current data encryption keys.
 
   Keyword Arguments:
             chain (bytes): Certificate chain for our signing public key.
@@ -28,7 +28,9 @@ class CryptoExchange(object):
   #
   # Per instance, defined in init
   #      __maxage: Maximum age (seconds)
-  # __randombytes: Random bytes added to exchange
+  # __randombytes: Number of random bytes added to exchange
+  #     __randoms: dictionary of arrays of random values used during
+  #                key exchange queries, indexed by topic
   #   __spk_chain: signing public key chain to root of trust, as array
   #   __cryptokey: Provider of operations involving private keys
   #
@@ -36,6 +38,8 @@ class CryptoExchange(object):
     self._logger = logging.getLogger(__name__)
     self.__maxage = maxage if (maxage!=None and maxage>0) else 86400
     self.__randombytes = randombytes if randombytes>=32 else 32
+    self.__randoms = {}
+    self.__randoms_lock = Lock()
     self.__cryptokey = cryptokey
     self.__spk_direct_request = True
     self.__spk_chain = []
@@ -132,6 +136,10 @@ class CryptoExchange(object):
         else:
           raise ValueError("Unexpected number of chain elements!")
       random0 = pk[3][0]
+      with self.__randoms_lock:
+        if not (topic in self.__randoms) or not (random0 in self.__randoms[topic]):
+          self._logger.info("unknown (or already used) random0 value in decrypt_keys")
+          return None
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
       msg = pk[4][pysodium.crypto_secretbox_NONCEBYTES:]
@@ -152,6 +160,8 @@ class CryptoExchange(object):
         else:
           # clear the esk/epk we just used
           self.__cryptokey.use_epks(topic, 'decrypt_keys', [])
+          with self.__randoms_lock:
+            self.__randoms[topic].remove(random0)
           return rvs
       self._logger.info("no valid decryption keys computed in decrypt_keys")
     except Exception as e:
@@ -172,6 +182,10 @@ class CryptoExchange(object):
       if epks is None:
         epks = self.__cryptokey.get_epks(topic,'decrypt_keys')
       random0 = pysodium.randombytes(self.__randombytes)
+      with self.__randoms_lock:
+        if not (topic in self.__randoms):
+          self.__randoms[topic] = []
+        self.__randoms[topic].append(random0) # store to check later
       # we allow either direct-to-producer or via-controller key establishment
       poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']]], default=msgpack_default_pack, use_bin_type=True)
       rv = []
