@@ -159,6 +159,28 @@ kafkacrypto has been extensively tested with kafka-python. It will use confluent
 ## Post Quantum Secure Cryptography
 Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25519+sntrup761, a hybrid classical-pq key exchange algorithm. This mirrors support for the same hybrid added in OpenSSH 8.9. It must be enabled on both producers and consumers to be used in lieu of the pure-classical method. The script `enable-pqcrypto.py` assists in enabing it.
 
+Use also requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761 algorithm enabled (the default).
+
+For raspberry pis and other devices not officially supported by liqoqs, the following may help:
+```
+apt-get install cmake ninja-build git
+# for tests: pip3 install pytest pytest-xdist
+mkdir oqs
+cd oqs
+git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs
+git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs-python.git
+cd liboqs
+mkdir build
+cd build
+# newer versions of liboqs disable SIKE/SIDH always and do not require turning off on this command line
+cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_SIKE=OFF -DOQS_ENABLE_KEM_SIDH=OFF
+ninja
+ninja run_tests
+ninja install
+cd ../../liboqs-python
+pip3 install .
+```
+
 ## Advanced Usage
 kafkacrypto has been designed to seamlessly support a range of key exchange authorization and delegation mechanisms beyond the simple single-password root of trust. An example of a simple "controller-based" intermediary is included in the main package. The requisite controller can be setup as:
 ```python
