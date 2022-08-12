@@ -75,6 +75,8 @@ class CryptoExchange(object):
       # (re)generate and then immediately use epks
       self.__cryptokey.get_epks(topic,'encrypt_keys')
       eks,epk = self.__cryptokey.use_epks(topic,'encrypt_keys',pks)
+      if len(eks) < 1:
+        return None # No compatible versions
       ek = eks[0]
       random0 = pk[3]
       random1 = pysodium.randombytes(self.__randombytes)
@@ -151,7 +153,7 @@ class CryptoExchange(object):
           # clear the esk/epk we just used
           self.__cryptokey.use_epks(topic, 'decrypt_keys', [])
           return rvs
-      raise ValueError
+      self._logger.info("no valid decryption keys computed in decrypt_keys")
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       pass
