@@ -164,7 +164,7 @@ Use also requires installing [liboqs-python](https://github.com/open-quantum-saf
 For raspberry pis and other devices not officially supported by liqoqs, the following may help:
 ```
 apt-get install cmake ninja-build git
-# for tests: pip3 install pytest pytest-xdist
+pip3 install pytest pytest-xdist
 mkdir oqs
 cd oqs
 git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs
