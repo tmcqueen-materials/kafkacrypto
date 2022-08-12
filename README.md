@@ -156,6 +156,9 @@ kcs.store_value('value2', 'value-of-value2')
 ## Kafka Python Interfaces
 kafkacrypto has been extensively tested with kafka-python. It will use confluent_kafka if available via a thin compatibility wrapper. Other wrappers can be added (submit a pull request!)
 
+## Post Quantum Secure Cryptography
+Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25519+sntrup761, a hybrid classical-pq key exchange algorithm. This mirrors support for the same hybrid added in OpenSSH 8.9. It must be enabled on both producers and consumers to be used in lieu of the pure-classical method. The script `enable-pqcrypto.py` assists in enabing it.
+
 ## Advanced Usage
 kafkacrypto has been designed to seamlessly support a range of key exchange authorization and delegation mechanisms beyond the simple single-password root of trust. An example of a simple "controller-based" intermediary is included in the main package. The requisite controller can be setup as:
 ```python
