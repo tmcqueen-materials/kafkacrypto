@@ -113,10 +113,12 @@ class KEMPublicKey(object):
     elif isinstance(pk0, (KEMSecretKey,)): # generating public key from secret key is allowed
       if pk0.version == 3:
         self.version = 3
-        self.keys = [pk0.keys[0],pk0.keys[1][2]]
+        # compute Curve25519 public key in situ, include sntrup761 encapped ciphertext
+        self.keys = [pysodium.crypto_scalarmult_curve25519_base(pk0.keys[0]),pk0.keys[1][2]]
       elif pk0.version == 2:
         self.version = 2
-        self.keys = [pk0.keys[0],pk0.keys[1][1]]
+        # compute Curve25519 public key in situ, include sntrup761 public key
+        self.keys = [pysodium.crypto_scalarmult_curve25519_base(pk0.keys[0]),pk0.keys[1][1]]
       else:
         # default version 1
         self.version = 1
@@ -221,7 +223,7 @@ class KEMSecretKey(object):
     elif self.version == 2:
       return "(Curve25519-sntrup761-Secret, [" + self.keys[0].hex() + ",[" + self.keys[1][0].hex() + "," + self.keys[1][1].hex() + "]])"
     elif self.version == 3:
-      return "(Curve25519-sntrup761-Secret-Used, [" + self.keys[0].hex() + ",[" + self.keys[1][0].hex() + "," + self.keys[1][1].hex() + "," + self.keys[1][2].hex() + "]])"
+      return "(Curve25519-sntrup761-Secret-ct, [" + self.keys[0].hex() + ",[" + self.keys[1][0].hex() + "," + self.keys[1][1].hex() + "," + self.keys[1][2].hex() + "]])"
     else:
       return "(Unparsable)"
   def __eq__(self, pk2):
