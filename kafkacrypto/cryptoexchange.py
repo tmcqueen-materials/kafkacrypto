@@ -136,9 +136,14 @@ class CryptoExchange(object):
         else:
           raise ValueError("Unexpected number of chain elements!")
       random0 = pk[3][0]
+      random_idx = -1
       with self.__randoms_lock:
-        if not (topic in self.__randoms) or not (random0 in self.__randoms[topic]):
-          self._logger.info("unknown (or already used) random0 value in decrypt_keys")
+        if topic in self.__randoms:
+          for i in range(0,len(self.__randoms[topic])):
+            if self.__randoms[topic][i] == random0:
+              random_idx = i
+        if not (topic in self.__randoms) or random_idx < 0:
+          self._logger.info("unknown (or already used) random0 value in decrypt_keys: %s vs %s", str(random0), str(self.__randoms[topic]) if topic in self.__randoms else "")
           return None
       random1 = pk[3][1]
       nonce = pk[4][0:pysodium.crypto_secretbox_NONCEBYTES]
@@ -161,7 +166,7 @@ class CryptoExchange(object):
           # clear the esk/epk we just used
           self.__cryptokey.use_epks(topic, 'decrypt_keys', [])
           with self.__randoms_lock:
-            self.__randoms[topic].remove(random0)
+            self.__randoms[topic].pop(random_idx)
           return rvs
       self._logger.info("no valid decryption keys computed in decrypt_keys")
     except Exception as e:
