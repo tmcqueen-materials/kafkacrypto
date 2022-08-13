@@ -163,8 +163,8 @@ Use also requires installing [liboqs-python](https://github.com/open-quantum-saf
 
 For raspberry pis and other devices not officially supported by liqoqs, the following may help:
 ```
-apt-get install cmake ninja-build git
-pip3 install pytest pytest-xdist
+sudo apt-get install cmake ninja-build git
+sudo pip3 install pytest pytest-xdist pyyaml
 mkdir oqs
 cd oqs
 git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs
@@ -175,10 +175,13 @@ cd build
 # newer versions of liboqs disable SIKE/SIDH always and do not require turning off on this command line
 cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_SIKE=OFF -DOQS_ENABLE_KEM_SIDH=OFF
 ninja
+# tests will take about 8 hours on a raspberry pi zero (v1)
 ninja run_tests
-ninja install
+sudo ninja install
 cd ../../liboqs-python
-pip3 install .
+sudo pip3 install .
+# the below may or may not be needed, depending on raspi os version
+sudo ldconfig
 ```
 
 ## Advanced Usage
