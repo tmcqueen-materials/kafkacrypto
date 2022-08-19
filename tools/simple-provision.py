@@ -118,7 +118,7 @@ else:
   _msgchkrot = _msgchainrot
 assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. This should not happen with simple-provision, please report as a bug.'
 pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])[0]
-assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your passwords correctly?'
+assert (len(pk) >= 3 and bytes(pk[2]) == bytes(prov._pk[_keys[key]])), 'Malformed chain for ' + key + '. Did you enter your passwords correctly?'
 
 topics = None
 while topics is None:
