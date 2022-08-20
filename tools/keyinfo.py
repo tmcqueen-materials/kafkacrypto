@@ -2,6 +2,7 @@
 import msgpack
 import base64
 import pysodium
+from kafkacrypto.keys import get_pks
 rot=base64.b64decode('kwDEAZDEIHn1MDouHBP7X1w945IARpSuHVVsCdwAA7B4E2+AWXKh')
 chain = base64.b64decode('chain-to-analyze')
 try:
@@ -21,6 +22,13 @@ for npk in chain:
   print("Raw Key:",base64.b64encode(msgpack.packb(pk,use_bin_type=(not legacy))))
   print("Timestamp:",pk[0])
   print("Posion:",msgpack.unpackb(pk[1], raw=legacy))
-  print("Key:",pk[2].hex())
+  pks = get_pks(pk[2])
+  if isinstance(pks,(list,tuple)):
+    pk[2] = pks[0]
+    for pk0 in pks:
+      print("Key:",str(pk0))
+  else:
+    pk[2] = pks
+    print("Key:",str(pks))
   print("")
 
