@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from threading import Thread
 from kafkacrypto import KafkaCryptoStore, KafkaCrypto, KafkaConsumer, KafkaProducer
-from time import sleep
+from time import sleep, time
 from pysodium import randombytes
 
 class ProdThread(object):
@@ -51,9 +51,9 @@ class ConsumeThread(object):
     kafka_config['value_deserializer'] = self.kc.getValueDeserializer()
     self.consumer = KafkaConsumer(**kafka_config)
     self.consumer.subscribe(["openmsitest.0"])
-    cnt = 0
+    end_time = time()+60
     rcvd = False
-    while not rcvd and cnt < 65:
+    while not rcvd and time() < end_time:
       rv = self.consumer.poll(timeout_ms=1000)
       for tp,msgs in rv.items():
         for msg in msgs:
@@ -72,5 +72,5 @@ for i in range(0,3):
   uval = randombytes(64)
   t2 = ConsumeThread(uval)
   t1 = ProdThread(uval,t2._my_thread)
-  t1._my_thread.join(65)
+  t1._my_thread.join(60+5)
 
