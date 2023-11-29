@@ -216,5 +216,5 @@ The sample provision script can appropriately setup keys for the ChainServer as 
 kafkacrypto is already in limited production use, and should be stable enough for broad adoption. However, a detailed security analysis of the kafkacrypto framework is still in progress, and use of this code should be considered experimental.
 
 ## Python Version Compatibility
-kafkacrypto is compatible with all versions of Python 3.3+. For Python 3.12, the kafka-python dependency must be 2.0.3 or later; since this dependency has not been released on PyPi, setup.py has been modified to require this directly from github.
+kafkacrypto is compatible with all versions of Python 3.3+. For Python 3.12, the kafka-python dependency must be 2.0.3 or later; since this dependency has not been released on PyPi, setup.py has been modified to require this directly from github. Note that this is not visible on PyPi, as they do not allow direct dependencies on git repos.
 
