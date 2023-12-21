@@ -172,6 +172,7 @@ class KafkaConsumer(Consumer):
     # Remove empty parameters
     for k in list(self.cf_config.keys()):
       if (self.cf_config[k] is None) or (isinstance(self.cf_config[k], (str,)) and len(self.cf_config[k]) == 0):
+        self._log.warning("Warning: Removing empty parameter %s passed to confluent wrapper", k)
         self.cf_config.pop(k)
     super().__init__(self.cf_config)
     if topics:
@@ -404,6 +405,7 @@ class KafkaProducer(Producer):
     # Remove empty parameters
     for k in list(self.cf_config.keys()):
       if (self.cf_config[k] is None) or (isinstance(self.cf_config[k], (str,)) and len(self.cf_config[k]) == 0):
+        self._log.warning("Warning: Removing empty parameter %s passed to confluent wrapper", k)
         self.cf_config.pop(k)
     self.messages_processed = 0
     self.messages_processed_lock = Lock()
