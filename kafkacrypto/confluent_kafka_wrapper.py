@@ -170,7 +170,8 @@ class KafkaConsumer(Consumer):
       if newk in self.cf_config.keys():
         self.config[oldk] = self.cf_config[newk]
     # Remove empty parameters
-    for k in self.cf_config.keys():
+    topop []
+    for k in list(self.cf_config.keys()):
       if (self.cf_config[k] is None) or (isinstance(self.cf_config[k], (str,)) and len(self.cf_config[k]) == 0):
         self.cf_config.pop(k)
     super().__init__(self.cf_config)
@@ -402,7 +403,7 @@ class KafkaProducer(Producer):
       if newk in self.cf_config.keys():
         self.config[oldk] = self.cf_config[newk]
     # Remove empty parameters
-    for k in self.cf_config.keys():
+    for k in list(self.cf_config.keys()):
       if (self.cf_config[k] is None) or (isinstance(self.cf_config[k], (str,)) and len(self.cf_config[k]) == 0):
         self.cf_config.pop(k)
     self.messages_processed = 0
