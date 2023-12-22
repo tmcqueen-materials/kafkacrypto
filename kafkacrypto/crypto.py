@@ -400,7 +400,7 @@ class KafkaCrypto(KafkaCryptoBase):
       finally:
         self._parent._lock.release()
       return msg
- 
+
   class Deserializer(kafka.serializer.Deserializer):
     def	__init__(self, parent, kv, max_key_wait_intervals, key_wait_interval):
       self._kv = kv
@@ -416,14 +416,16 @@ class KafkaCrypto(KafkaCryptoBase):
         return None
       root = self._parent.get_root(topic)
       if len(bytes_) < 1 or bytes_[0] != 1:
-        return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
+        # Not a KafkaCrypto format message
+        return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
       try:
         msg = msgpack.unpackb(bytes_[1:],raw=True)
         if (len(msg) != 3):
           raise KafkaCryptoSerializeError("Malformed Message!")
       except Exception as e:
+        # Not a KafkaCrypto format message
         self._parent._logger.debug("".join(format_exception_shim(e)))
-        return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
+        return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
       ki = msg[0]
       salt = msg[1]
       msg = msg[2]
@@ -466,7 +468,8 @@ class KafkaCrypto(KafkaCryptoBase):
         key,nonce = gen.generate(salt=salt)
         msg = KafkaCryptoMessage(pysodium.crypto_secretbox_open(msg,nonce,key),ipt=True)
       except:
-        return KafkaCryptoMessage.fromBytes(bytes_,deser=self,topic=topic)
+        # errors here mean the requisite key isnt (yet) available
+        return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=True)
       finally:
         self._parent._lock.release()
       return msg
