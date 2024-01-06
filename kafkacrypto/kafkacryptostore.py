@@ -8,17 +8,20 @@ class KafkaCryptoStore(CryptoStore):
      kafka configuration parameters, in addition to automatically configuring
      various common options. It serves to allow a user of kafkacrypto to
      manage *all* configuration with a single file if so desired.
-         file (str): Specifies the backing file in which to read and
-                     store configuration data. Must be readable, writable,
-                     and seekable, with no other writers than one instance
-                     of this class.
-       nodeID (str): Optional manual specification of node_id. Useful only
-                     if configuration data for many different nodes are
-                     stored in a single file (see above for why you do NOT
-                     want to do that), or if nodeID is not specified
-                     in the configuration file.
+                    file (str): Specifies the backing file in which to read and
+                                store configuration data. Must be readable, writable,
+                                and seekable, with no other writers than one instance
+                                of this class.
+                  nodeID (str): Optional manual specification of node_id. Useful only
+                                if configuration data for many different nodes are
+                                stored in a single file (see above for why you do NOT
+                                want to do that), or if nodeID is not specified
+                                in the configuration file.
+     conf_global_logger (bool): Optional tunable to control whether KafkaCryptoStore
+                                sets the logging level of just kafkacrypto loggers,
+                                or all globally (default: True).
   """
-  def __init__(self, file, nodeID=None):
+  def __init__(self, file, nodeID=None, conf_global_logger=True):
     if nodeID is None:
       super().__init__(file=file)
     else:
@@ -26,10 +29,11 @@ class KafkaCryptoStore(CryptoStore):
     if self._need_init:
       self.__init_kafkacryptostore()
     # set logging levels
-    # This line ensures a default level if logger hasnt yet been used
-    logging.basicConfig(level=self.load_value('log_level',default=logging.WARNING))
-    # This line ensures a default level on the root logger if logger has been used
-    logging.getLogger().setLevel(self.load_value('log_level',default=logging.WARNING))
+    if conf_global_logger:
+      # This line ensures a default level if logger hasnt yet been used
+      logging.basicConfig(level=self.load_value('log_level',default=logging.WARNING))
+      # This line ensures a default level on the root logger if logger has been used
+      logging.getLogger().setLevel(self.load_value('log_level',default=logging.WARNING))
     # This line sets the kafkacrypto logger level
     logging.getLogger("kafkacrypto").setLevel(self.load_value('log_level',section='crypto',default=logging.WARNING))
     # Check for CA list if not set
