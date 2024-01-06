@@ -1,6 +1,7 @@
 try:
   from kafka.future import Future as Future
 except ImportError:
+  import logging
   #
   # kafka-python compatible implementation of Future
   #
