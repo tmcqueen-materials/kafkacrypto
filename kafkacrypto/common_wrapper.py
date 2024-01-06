@@ -120,7 +120,7 @@ except ImportError:
 # Configuration option names
 # TODO: list confluent-kafka only options so they are not filtered out
 #
-PRODUCER_CONFIGS = {
+PRODUCER_CONFIGS = [
   'bootstrap_servers',
   'client_id',
   'key_serializer',
