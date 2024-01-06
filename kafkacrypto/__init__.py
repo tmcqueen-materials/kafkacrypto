@@ -23,7 +23,11 @@ try:
 except ImportError:
   # fallback to kafka-python
   warnings.warn("No confluent_kafka package found. Falling back to kafka-python. It is highly, recommended that you install confluent_kafka and librdkafka for better performance, especially with large messages.",category=RuntimeWarning)
-  from kafkacrypto.kafka_python_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset,OffsetAndMetadata,OFFSET_BEGINNING,OFFSET_END
+  try:
+    from kafkacrypto.kafka_python_wrapper import KafkaConsumer,KafkaProducer,TopicPartition,TopicPartitionOffset,OffsetAndMetadata,OFFSET_BEGINNING,OFFSET_END
+  except ImportError as ie:
+    warnings.warn("Unable to fall back to kafka-python. Make sure either confluent-kafka or kafka-python is installed to use KafkaCrypto.",category=RuntimeWarning)
+    raise ie
 try:
   # See keys.py
   import oqs

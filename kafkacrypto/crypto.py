@@ -1,4 +1,4 @@
-from threading import Thread
+yfrom threading import Thread
 import inspect
 from kafkacrypto.utils import format_exception_shim
 import pysodium
@@ -6,7 +6,7 @@ from time import time,sleep
 import msgpack
 import logging
 from kafkacrypto import TopicPartition,TopicPartitionOffset,OFFSET_BEGINNING
-import kafka.serializer
+from kafkacrypto.common_wrapper import AbstractSerializer, AbstractDeserializer
 from kafkacrypto.base import KafkaCryptoBase
 from kafkacrypto.exceptions import KafkaCryptoError, KafkaCryptoSerializeError
 from kafkacrypto.message import KafkaCryptoMessage
@@ -360,7 +360,7 @@ class KafkaCrypto(KafkaCryptoBase):
   # We have two internal subclasses that implement the Kafka SerDes interface,
   # and handle new keys/subscriptions as needed.
   #
-  class Serializer(kafka.serializer.Serializer):
+  class Serializer(AbstractSerializer):
     def __init__(self, parent, kv):
       self._kv = kv
       self._parent = parent
@@ -401,7 +401,7 @@ class KafkaCrypto(KafkaCryptoBase):
         self._parent._lock.release()
       return msg
 
-  class Deserializer(kafka.serializer.Deserializer):
+  class Deserializer(AbstractDeserializer):
     def	__init__(self, parent, kv, max_key_wait_intervals, key_wait_interval):
       self._kv = kv
       self._parent = parent

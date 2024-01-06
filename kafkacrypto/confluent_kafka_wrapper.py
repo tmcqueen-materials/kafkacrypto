@@ -4,7 +4,7 @@ import logging
 from time import time
 from threading import Lock
 from confluent_kafka import Producer, Consumer, TopicPartition as TopicPartitionOffset, OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_NOT_AVAILABLE, KafkaException, KafkaError
-from kafka.future import Future
+from kafkacrypto.common_wrapper import Future
 from kafkacrypto.exceptions import KafkaCryptoWrapperError
 from collections import namedtuple
 
