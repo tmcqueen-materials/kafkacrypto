@@ -90,7 +90,7 @@ except ImportError:
   #
   import abc
 
- class AbstractDeserializer(object):
+  class AbstractDeserializer(object):
     __meta__ = abc.ABCMeta
 
     def __init__(self, **config):
