@@ -1,4 +1,4 @@
-yfrom threading import Thread
+from threading import Thread
 import inspect
 from kafkacrypto.utils import format_exception_shim
 import pysodium
