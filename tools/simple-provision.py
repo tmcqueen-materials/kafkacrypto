@@ -1,5 +1,9 @@
 #!/usr/bin/python3
-# TODO: Adjust to support PQ signing chains
+# TODO: Adjust to support PQ signing chains. This requires waiting for the PQ software scene to settle a bit.
+#       For simple provisioning, we need to be able to deterministically generate a keypair from a pasword.
+#       This requires access to a keypair generation function that takes as input a seed. As of Nov. 2024,
+#       allowed seed formats (and hence software support therein) is still in flux in the NIST pqcrypto
+#       effort. Once that settles, this can be updated to support provisioning different key types.
 import pysodium
 import msgpack
 from os import path
