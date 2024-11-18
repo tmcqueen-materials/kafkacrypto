@@ -4,7 +4,7 @@ import logging
 import msgpack
 from os import path
 from kafkacrypto.utils import msgpack_default_pack
-from kafkacrypto.keys import SignPublicKey, KEMPublicKey, KEMSecretKey
+from kafkacrypto.keys import SignPublicKey, SignSecretKey, KEMPublicKey, KEMSecretKey
 
 class CryptoKey(object):
   """Class utilizing file-backed storage to store (long-term) private key
@@ -18,8 +18,8 @@ class CryptoKey(object):
   #
   # Per instance, defined in init
   #      __file: File object
-  #       __spk: signing public key
-  #       __ssk: signing private (secret) key
+  #       __spk: list of signing public keys
+  #       __ssk: list of signing private (secret) keys
   #        __ek: private key for (un)wrapping opaque bytes
   #  __ephk_legacy: if true, and if version 1 included in __ephk_ver, then send
   #                 new key requests in legacy format (replies to legacy format
@@ -50,28 +50,51 @@ class CryptoKey(object):
     if len(contents) == 2:
       # unversioned legacy format, so update
       self._logger.warning("Cryptokey file is unversioned.")
-      contents = [1] + contents + [True,[1]]
+      contents = [2] + [[contents[0]]] + [contents[1]] + [True,[1]]
       if (isinstance(file, (str))):
-        self._logger.warning("Cryptokey file updating from unversioned to versioned format.")
+        self._logger.warning("Cryptokey file updating from unversioned to version 2 format.")
         with open(file, 'wb') as f:
           f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
     self.__eklock = Lock()
     self.__esk = {}
     if contents[0] == 1:
-      # version 1
-      self.__ssk = contents[1]
-      self.__spk = SignPublicKey(pysodium.crypto_sign_sk_to_pk(self.__ssk))
+      # version 1 (first to support multiple ephemeral key types at once)
+      self.__ssk = [SignSecretKey(contents[1])]
+      self.__spk = [SignPublicKey(self.__ssk[0])]
+      self.__ek = contents[2]
+      self.__ephk_legacy = contents[3]
+      self.__ephk_ver = contents[4]
+      # update to version 2
+      if (isinstance(file, (str))):
+        self._logger.warning("Cryptokey file updating from version 1 to version 2 format.")
+        with open(file, 'wb') as f:
+          f.write(msgpack.packb([2,[contents[1]],contents[2],contents[3],contents[4]], default=msgpack_default_pack, use_bin_type=True))
+    elif contents[0] == 2:
+      # version 2 (supports multiple separate signature key types at once)
+      self.__ssk = []
+      self.__spk = []
+      for ssk in contents[1]:
+        nsk = SignSecretKey(ssk)
+        self.__ssk.append(nsk)
+        self.__spk.append(SignPublicKey(nsk))
       self.__ek = contents[2]
       self.__ephk_legacy = contents[3]
       self.__ephk_ver = contents[4]
 
-  def get_spk(self):
-    return self.__spk
+  def get_num_spk(self):
+    return len(self.__spk)
 
-  def sign_spk(self, msg):
-    if self.__spk.version == 1:
-      return pysodium.crypto_sign(msg, self.__ssk)
-    return None
+  def get_id_spk(self):
+    rv = b''
+    for spk in self.__spk:
+      rv += spk
+    return rv
+
+  def get_spk(self, idx=0):
+    return self.__spk[idx]
+
+  def sign_spk(self, msg, idx=0):
+    return self.__ssk[idx].crypto_sign(msg)
 
   def get_epks(self, topic, usage):
     #
@@ -142,8 +165,10 @@ class CryptoKey(object):
 
   def __init_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
-    pk,sk = pysodium.crypto_sign_keypair()
-    self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
+    # Default to generate a version 1 key (Ed25519) only
+    ssk = SignSecretKey(1)
+    spk = SignPublicKey(ssk)
+    self._logger.warning("  Public key: %s", bytes(spk).hex())
     with open(file, "wb") as f:
-      f.write(msgpack.packb([1,sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
+      f.write(msgpack.packb([2,[bytes(ssk)],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")

@@ -29,7 +29,7 @@ class Provisioners(object):
     try:
       pk = None
       try:
-        pk,pkprint = process_chain(msgval,topic,'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
+        pk,pkprint,pktypes = process_chain(msgval,topic,'key-encrypt-subscribe',allowlist=self.__allowlist,denylist=self.__denylist)
       except ProcessChainError as pce:
         raise pce
       except:
@@ -40,7 +40,11 @@ class Provisioners(object):
         else:
           raise ValueError("Request did not validate!")
       # TODO: can add sanity checking of random0 and the public key if desired.
-      msg = cryptoexchange.signed_epks(topic, epks=[pk[2]], random0=pk[3])[0]
+      msgs = cryptoexchange.signed_epks(topic, epks=[pk[2]], random0=pk[3], matchpk=pktypes[0])
+      if len(msgs) == 0: # did not match same key type, so use them all
+        msgs = cryptoexchange.signed_epks(topic, epks=[pk[2]], random0=pk[3])
+      # TODO: Handle more than one signing key.
+      msg = msgs[0][0]
     except Exception as e:
       self._logger.warning("".join(format_exception_shim(e)))
       return (None, None)

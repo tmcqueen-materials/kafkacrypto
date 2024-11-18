@@ -39,7 +39,7 @@ class KafkaCryptoBase(object):
                             if opened by this class.
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
-                            (get/sign_spk,get/use_epks,
+                            (get_id/get_num/get/sign_spk,get/use_epks,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
@@ -100,7 +100,8 @@ class KafkaCryptoBase(object):
         self._cryptostore.store_value('cryptokey', 'file#' + cryptokey)
     if (isinstance(cryptokey,(str))):
       cryptokey = CryptoKey(file=cryptokey)
-    if (not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
+    if (not hasattr(cryptokey, 'get_id_spk') or not inspect.isroutine(cryptokey.get_id_spk) or not hasattr(cryptokey, 'get_num_spk') or not inspect.isroutine(cryptokey.get_num_spk) or
+        not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
         not hasattr(cryptokey, 'get_epks') or not inspect.isroutine(cryptokey.get_epks) or not hasattr(cryptokey, 'use_epks') or not inspect.isroutine(cryptokey.use_epks) or
         not hasattr(cryptokey, 'wrap_opaque') or not inspect.isroutine(cryptokey.wrap_opaque) or not hasattr(cryptokey, 'unwrap_opaque') or not inspect.isroutine(cryptokey.unwrap_opaque)):
       raise KafkaCryptoBaseError("Invalid cryptokey source supplied!")
@@ -124,7 +125,16 @@ class KafkaCryptoBase(object):
     denylist = self._cryptostore.load_section('denylist',defaults=False)
     if not (denylist is None):
       denylist = denylist.values()
-    self._cryptoexchange = CryptoExchange(self._cryptostore.load_value('chain',section='crypto'),self._cryptokey,
+
+    # Attempt legacy chain load
+    chain = self._cryptostore.load_value('chain',section='crypto')
+    if chain!=None:
+      self._cryptostore.store_value('chain0',chain,section='chains')
+      self._cryptostore.store_value('chain',None,section='crypto')
+    chains = self._cryptostore.load_section('chains',defaults=False)
+    if not (chains is None):
+      chains = chains.values()
+    self._cryptoexchange = CryptoExchange(chains,self._cryptokey,
                            maxage=self._cryptostore.load_value('maxage',section='crypto'),allowlist=allowlist,denylist=denylist)
 
     self._nodeID = nodeID

@@ -31,7 +31,7 @@ class KafkaCryptoChainServer(object):
                             set_cryptokey)
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
-                            (get/sign_spk,get/use_epks,
+                            (get_id/get_num/get/sign_spk,get/use_epks,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
@@ -63,7 +63,8 @@ class KafkaCryptoChainServer(object):
         cryptokey = cryptokey[5:]
     if (isinstance(cryptokey,(str))):
       cryptokey = CryptoKey(file=cryptokey)
-    if (not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
+    if (not hasattr(cryptokey, 'get_id_spk') or not inspect.isroutine(cryptokey.get_id_spk) or not hasattr(cryptokey, 'get_num_spk') or not inspect.isroutine(cryptokey.get_num_spk) or
+        not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
         not hasattr(cryptokey, 'get_epks') or not inspect.isroutine(cryptokey.get_epks) or not hasattr(cryptokey, 'use_epks') or not inspect.isroutine(cryptokey.use_epks) or
         not hasattr(cryptokey, 'wrap_opaque') or not inspect.isroutine(cryptokey.wrap_opaque) or not hasattr(cryptokey, 'unwrap_opaque') or not inspect.isroutine(cryptokey.unwrap_opaque)):
       raise KafkaCryptoChainServerError("Invalid cryptokey source supplied!")
@@ -76,22 +77,32 @@ class KafkaCryptoChainServer(object):
     self._refresh_fraction = self._cryptostore.load_value('refresh_fraction', default=0.143)
     self._flush_time = self._cryptostore.load_value('flush_time', default=2.0)
 
-    # Load our signing key and trimmings
-    self._our_chain = self._cryptostore.load_value('chain',section='crypto')
-    try:
-      msgpack.unpackb(self._our_chain, raw=False)
-    except:
-      self._logger.warning("Chain server chain is in legacy format. This should be corrected.")
-      self._our_chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=True), default=msgpack_default_pack, use_bin_type=True)
+    # Load our signing key(s) and trimmings
+
     # allowlist entries are msgpack encoded single certificates (with public key in index 2)
     self._allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (self._allowlist is None):
       self._allowlist = self._allowlist.values()
 
-    # Validate
-    pk,pkprint = process_chain(self._our_chain,None,None,allowlist=self._allowlist)
-    if pk[2] != self._cryptokey.get_spk():
-      raise KafkaCryptoChainServerError("Chain does not match public key: " + str(pkprint))
+    # Attempt legacy chain load
+    chain = self._cryptostore.load_value('chain',section='crypto')
+    if chain!=None:
+      self._cryptostore.store_value('chain0',chain,section='chains')
+      self._cryptostore.store_value('chain',None,section='crypto')
+    chains = self._cryptostore.load_section('chains',defaults=False)
+    if not (chains is None):
+      chains = chains.values()
+    self._our_chains = chains
+    for idx in range(0, len(self._our_chains)):
+      try:
+        msgpack.unpackb(self._our_chains[idx], raw=False)
+      except:
+        self._logger.warning("Chain server chain idx=%i is in legacy format. This should be corrected.", idx)
+        self._our_chains[idx] = msgpack.packb(msgpack.unpackb(self._our_chains[idx],raw=True), default=msgpack_default_pack, use_bin_type=True)
+      # Validate chain
+      pk,pkprint,_ = process_chain(self._our_chains[idx],None,None,allowlist=self._allowlist)
+      if pk[2] != self._cryptokey.get_spk(idx=idx):
+        raise KafkaCryptoChainServerError("Chain for idx=" + str(idx) + " does not match public key: " + str(pkprint))
 
     # Connect to Kafka
     self._producer = KafkaProducer(**self._cryptostore.get_kafka_config('producer'))
@@ -113,8 +124,11 @@ class KafkaCryptoChainServer(object):
             # Time to renew this key
             self._logger.warning("Key expires soon, renewing %s", cv)
             msg = msgpack.packb([time()+self._lifetime,cv[1],cv[2]], default=msgpack_default_pack, use_bin_type=True)
-            chain = self._cryptokey.sign_spk(msg)
-            chain = msgpack.packb(msgpack.unpackb(self._our_chain,raw=False) + [chain], default=msgpack_default_pack, use_bin_type=True)
+            for idx in range(0, len(self._our_chains)):
+              if self._cryptokey.get_spk(idx).same_type(cv[2]):
+                break
+            chain = self._cryptokey.sign_spk(msg,idx=idx)
+            chain = msgpack.packb(msgpack.unpackb(self._our_chains[idx],raw=False) + [chain], default=msgpack_default_pack, use_bin_type=True)
             # Validate
             pk,_ = process_chain(chain,None,None,allowlist=self._allowlist)
             # Broadcast

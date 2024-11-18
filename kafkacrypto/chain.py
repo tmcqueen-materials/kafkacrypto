@@ -208,7 +208,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   # an allowlisted key and the final item with no denylisted keys.
   # The final item might itself be the allowlisted key.
   #
-  # Otherwise, returns an array containing two arrays. The first array
+  # Otherwise, returns an array containing three arrays. The first array
   #  contains:
   #  (0) The minimum max_age timestamp
   #  (1) The intersection of allowed topics and usages, in the
@@ -218,13 +218,19 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
   # The second array contains one entry per item in the chain, containing
   # a textual / human readable description (useful for verbose messages) of
   # how the item was interpreted.
+  # The third array contains one entry per item in the chain, containing
+  # the SignPublicKey for that chain element, except for the final (leaf)
+  # element. Since there is always at least a ROT, this array will be
+  # of at least length 1.
   #
   printable = []
+  spks = []
   if allowlist is None:
     raise ProcessChainError("No possible roots of trust!", printable)
   last_error = ProcessChainError("No roots of trust found!", printable)
   for rot in allowlist:
     printable = []
+    spks = []
     try:
       denylisted = False
       val = [rot] + msgpack.unpackb(chain,raw=True)
@@ -255,6 +261,8 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
           pk = msgpack.unpackb(npk,raw=True) # root is unsigned
           pk[2] = get_pks(pk[2])
         printable.append(str(printable_cert(pk)))
+        if isinstance(pk[2],(SignPublicKey,)):
+          spks.append(pk[2])
       # must finally check if leaf key(s) are in allowlist/denylist
       # and remove ones that are
       if isinstance(pk[2],(SignPublicKey,)):

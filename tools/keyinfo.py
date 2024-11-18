@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# TODO: Adjust to support PQ signing chains
 import msgpack
 import base64
 import pysodium
