@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# TODO: Adjust to support PQ signing chains
+# TODO: Adjust to support PQ escrow keys, and fully support multiple signing chains.
 import pysodium
 import msgpack
 from configparser import ConfigParser
@@ -9,7 +9,8 @@ from os import path
 from binascii import unhexlify, hexlify
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
-from kafkacrypto.utils import PasswordProvisioner
+from kafkacrypto.provisioners import PasswordProvisioner
+from kafkacrypto.cryptokey import CryptoKey
 from kafkacrypto import KafkaCryptoStore
 
 #
@@ -101,7 +102,13 @@ if choice<5:
   password = ''
   while len(password) < 12:
     password = getpass('Provisioning Password (12+ chars): ')
-  prov = PasswordProvisioner(password, _rot)
+  keytype = 0
+  while not (keytype in [1,4]):
+    try:
+      keytype = int(input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? '))
+    except ValueError:
+      keytype = 1
+  prov = PasswordProvisioner(password, _rot, keytype)
 
   # Check we have appropriate chains
   if (choice == 1):
@@ -112,7 +119,7 @@ if choice<5:
     _msgchkrot = _msgchainrot
   assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. Use generate-chains.py (and possibly sign with another key), and add to provision.py.'
   pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])[0]
-  assert (len(pk) >= 3 and bytes(pk[2]) == bytes(prov._pk[_keys[key]])), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
+  assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your password correctly and have msgchain rot set appropriately?'
 
 topics = None
 while topics is None:
@@ -177,18 +184,11 @@ if choice<5:
     print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
-if path.exists(nodeID + ".crypto"):
-  with open(nodeID + ".crypto", "rb+") as f:
-    sk,rb = msgpack.unpackb(f.read(), raw=True)
-    pk = pysodium.crypto_sign_sk_to_pk(sk)
-    f.seek(0,0)
-    f.write(msgpack.packb([sk,rb], use_bin_type=True))
-    f.flush()
-    f.truncate()
-else:
-  pk,sk = pysodium.crypto_sign_keypair()
-  with open(nodeID + ".crypto", "wb") as f:
-    f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
+eck = CryptoKey(nodeID + ".crypto", keytypes=[keytype])
+if eck.get_num_spk() > 1:
+  print('More than one SPK found! This tool needs updating.')
+  # TODO: implement "select a key for provisioning logic, or add a new key type"
+pk = eck.get_spk()
 
 poison = [['usages',_usages[key]]]
 if len(topics) > 0:
@@ -198,7 +198,7 @@ if pathlen != -1:
 poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
 if choice<5:
-  msg = pysodium.crypto_sign(msgpack.packb(msg, use_bin_type=True), prov._sk[_keys[key]])
+  msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, use_bin_type=True))
   chain = msgpack.packb(msgpack.unpackb(_msgchains[key], raw=False) + [msg], use_bin_type=True)
 else:
   print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg, use_bin_type=True)))
@@ -210,7 +210,7 @@ print(nodeID, 'public key:', hexlify(pk))
 
 # Third, write config
 kcs = KafkaCryptoStore(nodeID + ".config", nodeID)
-kcs.store_value('chain', chain, section='crypto')
+kcs.store_value('chain0', chain, section='chains')
 if kcs.load_value('cryptokey') is None:
   kcs.store_value('cryptokey', "file#" + nodeID + ".crypto")
 kcs.store_value('rot', _msgrot, section='allowlist')

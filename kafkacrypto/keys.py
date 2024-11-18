@@ -115,11 +115,15 @@ class SignPublicKey(object):
       return "(Ed25519-SLH-DSA-SHAKE-128f, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
     else:
       return "(Unparsable)"
+  def get_type(self):
+    return self.version
   def same_type(self, pk2):
     # Handle implicit version 1 too
     if isinstance(pk2, (bytes,bytearray,)):
       pk2 = SignPublicKey(pk2)
     if isinstance(pk2, (SignPublicKey,)) and self.version == pk2.version:
+      return True
+    if isinstance(pk2, (int,)) and self.version == pk2:
       return True
     return False
   def __eq__(self, pk2):
