@@ -8,19 +8,14 @@ try:
   # which is the version to have added SPINCS+ 3.1 support.
   # TODO: when liboqs adds official SLH-DSA support, just replace this with
   # an instantiation of the actual call
-  if oqs.oqs_version().split('.')[1] >= 8:
+  if int(oqs.oqs_version().split('.')[1]) >= 8:
     class SLHDSASHAKE128fSignature(oqs.Signature):
       siglen = 17088
       # We do pure SLH-DSA, with an empty context string
       dsctx = b'\x00\x00'
       def __init__(self, secret_key=None):
         if not (secret_key is None):
-          # TODO: Until liboqs supports calculating public key from secret, we store
-          # the public key as part of the secret key. This does open up various
-          # attacks for attackers who control the secret key content (but for
-          # this application, if you can modify the secret key, you are already toast)
-          self.public_key = secret_key[-32:]
-          secret_key = secret_key[0:-32]
+          self.public_key = secret_key[-32:] # last 32 bytes of secret key is the public key
         super().__init__("SPHINCS+-SHAKE-128f-simple", secret_key=secret_key)
       def sign(self, message):
         return super().sign(elf.dsctx + message)
@@ -29,11 +24,11 @@ try:
       def generate_keypair(self):
         pk = super().generate_keypair()
         self.public_key = bytes(pk)
-        return bytes(self.public_key), self.export_secret_key()
+        return self.public_key,self.export_secret_key()
       def export_public_key(self):
         return bytes(self.public_key)
       def export_secret_key(self):
-        return bytes(self.secret_key) + bytes(self.public_key)
+        return bytes(super().export_secret_key())
 
 except ImportError:
   pass
@@ -97,10 +92,17 @@ class SignPublicKey(object):
         # default version 1
         self.version = 1
         self.keys = pysodium.crypto_sign_sk_to_pk(pk0.keys)
-    else:
+    elif isinstance(pk0, (bytes,bytearray)) and len(pk0) == 32:
       # implicit version 1
       self.version = 1
       self.keys = pk0
+    else:
+      # implicit msgpacked bytes
+      pk0 = msgpack.unpackb(pk0,raw=False)
+      if not (pk0[0] in [1,4]):
+        raise PublicKeyError()
+      self.version = pk0[0]
+      self.keys = pk0[1]
     # for ctypes calling compatibility (see also __len__ and __getitem__ below)
     self._as_parameter_ = bytes(self)
   def __bytes__(self):
@@ -163,8 +165,8 @@ class SignPublicKey(object):
 #  --> except version 1, values should be unique between Sign and KEM classes
 # version   keys
 # -------   -------
-#    1      bytes representing an Ed25519 secret key
-#    4      list of two items: Ed25519 secret key bytes, SLH-DSA-SHAKE-128f secret key bytes
+#    1      bytes representing an Ed25519 secret key (32)
+#    4      list of two items: Ed25519 secret key bytes (32), SLH-DSA-SHAKE-128f secret key bytes
 class SignSecretKey(object):
   version = 0
   keys = b''
@@ -177,14 +179,24 @@ class SignSecretKey(object):
         self.version = pk0[0]
         self.keys = pk0[1]
         if self.version == 4:
-          self.slhdsashake128f = SLHDSASHAKE128fSignature(secret_key=self.keys[1])
+          self.slhdsashake128f = SLHDSASHAKE128fSignature(self.keys[1])
       else:
         # list of secret keys
         raise SecretKeyError()
-    elif isinstance(pk0,(bytes,bytearray)) and len(pk0) == 32:
-      # implicit version 1
-      self.version = 1
-      self.keys = pk0
+    elif isinstance(pk0,(bytes,bytearray)):
+      if len(pk0) == 32:
+        # implicit version 1
+        self.version = 1
+        self.keys = pk0
+      else:
+        # implicit msgpacked bytes
+        pk0 = msgpack.unpackb(pk0,raw=False)
+        if not (pk0[0] in [1,4]):
+          raise SecretKeyError()
+        self.version = pk0[0]
+        self.keys = pk0[1]
+        if self.version == 4:
+          self.slhdsashake128f = SLHDSASHAKE128fSignature(self.keys[1])
     else:
       # assume version is what was passed
       if pk0 == 4:
@@ -194,7 +206,7 @@ class SignSecretKey(object):
         self.keys = [sk] # Ed25519 key first
         self.slhdsashake128f = SLHDSASHAKE128fSignature()
         pk,sk = self.slhdsashake128f.generate_keypair()
-        self.keys += [sk] # SLH-DSA-SHAKE-128f key second
+        self.keys += [sk] # SLH-DSA-SHAKE-128f secret key second
       else:
         # default to version 1
         self.version = 1
@@ -290,10 +302,18 @@ class KEMPublicKey(object):
       else:
         # list of public keys
         raise PublicKeyError()
-    else:
+    elif isinstance(pk0, (bytes,bytearray)) and len(pk0) == 32:
       # implicit version 1
       self.version = 1
       self.keys = pk0
+    else:
+      # implicit msgpacked bytes
+      pk0 = msgpack.unpackb(pk0,raw=False)
+      if not (pk0[0] in [1,2,3,5,6]):
+        raise PublicKeyError()
+      self.version = pk0[0]
+      self.keys = pk0[1]
+
     # for ctypes calling compatibility (see also __len__ and __getitem__ below)
     self._as_parameter_ = bytes(self)
   def __bytes__(self):
@@ -308,7 +328,7 @@ class KEMPublicKey(object):
       return "(Curve25519-sntrup761-pk, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
     elif self.version == 3:
       return "(Curve25519-sntrup761-ct, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
-   elif self.version == 5:
+    elif self.version == 5:
       return "(Curve25519-ML-KEM-1024-pk, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
     elif self.version == 6:
       return "(Curve25519-ML-KEM-1024-ct, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
@@ -368,10 +388,22 @@ class KEMSecretKey(object):
       else:
         # list of secret keys
         raise SecretKeyError()
-    elif isinstance(pk0,(bytes,bytearray)) and len(pk0) == 32:
-      # implicit version 1
-      self.version = 1
-      self.keys = pk0
+    elif isinstance(pk0,(bytes,bytearray)):
+      if len(pk0) == 32:
+        # implicit version 1
+        self.version = 1
+        self.keys = pk0
+      else:
+        # implicit msgpacked bytes
+        pk0 = msgpack.unpackb(pk0,raw=False)
+        if not (pk0[0] in [1,2,3,5,6]):
+          raise SecretKeyError()
+        self.version = pk0[0]
+        self.keys = pk0[1]
+        if self.version == 2 or self.version == 3:
+          self.sntrup761 = oqs.KeyEncapsulation("sntrup761", secret_key=self.keys[1][0])
+        if self.version == 5 or self.version == 6:
+          self.mlkem1024 = oqs.KeyEncapsulation("ML-KEM-1024", secret_key=self.keys[1][0])
     else:
       # assume version is what was passed
       if pk0 == 6:
