@@ -199,6 +199,8 @@ Starting with version v0.9.11.0, kafkacrypto supports key signing using Ed25519+
 
 The script `enable-pq-signing.py` assists in enabling pq signing.
 
+Note that to use password-based deterministic key provisioners, you also need to install [pyspx-slhdsa](https://github.com/tmcqueen-materials/pyspx-slhdsa). We hope to remove this dependency once liboqs-python exposes seed-based key generation.
+
 ## Advanced Usage
 kafkacrypto has been designed to seamlessly support a range of key exchange authorization and delegation mechanisms beyond the simple single-password root of trust. An example of a simple "controller-based" intermediary is included in the main package. The requisite controller can be setup as:
 ```python

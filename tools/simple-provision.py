@@ -38,9 +38,13 @@ _keys = {    'producer': 'producer',
 keytype = 0
 while not (keytype in [1,4]):
   try:
-    keytype = int(input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? '))
+    kt = input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? ')
+    if len(kt) == 0:
+      keytype = 1
+    else:
+      keytype = int(kt)
   except ValueError:
-    keytype = 1
+    pass
 
 # Get ROT first
 password = ''
@@ -48,7 +52,7 @@ while len(password) < 12:
   password = getpass('ROT Password (12+ chars): ')
 rot = PasswordROT(password, keytype)
 
-_rot = rot._pk
+_rot = bytes(rot._pk)
 _msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
@@ -65,7 +69,7 @@ _signedprov = { 'producer': None,
             'prodcon': None,
           }
 for kn in _signedprov.keys():
-  key=prov._pk[kn]
+  key=bytes(prov._pk[kn])
   poison = msgpack.packb([['usages',_usages[kn]]], use_bin_type=True)
   tosign = msgpack.packb([0,poison,key], use_bin_type=True)
   _signedprov[kn] = rot._sk.crypto_sign(tosign)
@@ -194,7 +198,7 @@ if len(topics) > 0:
 if pathlen != -1:
   poison.append(['pathlen',pathlen])
 poison = msgpack.packb(poison, use_bin_type=True)
-msg = [time()+_lifetime, poison, pk]
+msg = [time()+_lifetime, poison, bytes(pk)]
 msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, use_bin_type=True))
 chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], use_bin_type=True)
 print(nodeID, 'Public Key:', str(pk))

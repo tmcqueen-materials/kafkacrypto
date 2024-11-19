@@ -18,9 +18,9 @@ try:
           self.public_key = secret_key[-32:] # last 32 bytes of secret key is the public key
         super().__init__("SPHINCS+-SHAKE-128f-simple", secret_key=secret_key)
       def sign(self, message):
-        return super().sign(elf.dsctx + message)
+        return super().sign(self.dsctx + message)
       def verify(self, message, signature, public_key):
-        return super().verify(self.dctx + message, signature, public_key)
+        return super().verify(self.dsctx + message, signature, public_key)
       def generate_keypair(self):
         pk = super().generate_keypair()
         self.public_key = bytes(pk)
@@ -58,6 +58,11 @@ def get_pks(pk0):
       for pk in pk0:
         rv.append(get_pks(pk))
       return rv
+  elif isinstance(pk0, (bytes,bytearray)) and len(pk0) != 32: # no need to check 64, since this is only public keys
+    try:
+      return SignPublicKey(pk0)
+    except PublicKeyError:
+      return KEMPublicKey(pk0)
   else:
     # implicit version 1, treat as sign public key for now
     return SignPublicKey([1, pk0])
@@ -184,7 +189,7 @@ class SignSecretKey(object):
         # list of secret keys
         raise SecretKeyError()
     elif isinstance(pk0,(bytes,bytearray)):
-      if len(pk0) == 32:
+      if len(pk0) == 64:
         # implicit version 1
         self.version = 1
         self.keys = pk0

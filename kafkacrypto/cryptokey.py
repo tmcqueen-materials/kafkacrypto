@@ -46,9 +46,9 @@ class CryptoKey(object):
     else:
       data = file.read()
     datalen = len(data)
-    self.__load_update_cryptokey(data, datalen, isinstance(file, (str)), keytypes)
+    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes)
 
-  def __load_update_cryptokey(self, data, datalen, isfile, keytypes):
+  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes):
     # this could be legacy
     contents = None
     while len(data) and contents is None:
@@ -103,7 +103,7 @@ class CryptoKey(object):
       contents[1].append(bytes(nsk))
       self._logger.warning("  Adding New Public Key: %s", bytes(spk).hex())
     # Update cryptokey file if new keytypes were created
-    if len(kt) > 0:
+    if len(keytypes) > 0:
       assert isfile # Should always be true because otherwise we errored out earlier
       self._logger.warning("Cryptokey file updating with new keytypes=%s. Provisioning required for successful operation.", str(keytypes))
       with open(file, 'wb') as f:

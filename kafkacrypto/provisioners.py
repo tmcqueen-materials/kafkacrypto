@@ -92,12 +92,17 @@ class PasswordProvisioner(object):
         self._pk[key] = SignPublicKey(self._pk[key])
         self._sk[key] = SignSecretKey(self._sk[key])
         print("  Signing Public Key (", key, "): ", str(self._pk[key]))
+      elif keytype == 4:
+        # TODO: We also need a variant of pyspx to deterministically generate a keypair from a seed
+        # until that capability is added to liboqs
+        import pyspx_slhdsa.shake_128f
+        self._seed[key] = pysodium.crypto_pwhash_scryptsalsa208sha256(pysodium.crypto_sign_SEEDBYTES+pyspx_slhdsa.shake_128f.crypto_sign_SEEDBYTES, password, self._salt[key], opslimit=self._ops, memlimit=self._mem) # first 32 bytes Ed25519, next 96 bytes SLH-DSA-SHAKE-128f
+        pk1,sk1 = pysodium.crypto_sign_seed_keypair(self._seed[key][0:pysodium.crypto_sign_SEEDBYTES])
+        pk2,sk2 = pyspx_slhdsa.shake_128f.generate_keypair(self._seed[key][pysodium.crypto_sign_SEEDBYTES:])
+        self._pk[key] = SignPublicKey([4,[pk1,pk2]])
+        self._sk[key] = SignSecretKey([4,[sk1,sk2]])
+        print("  Signing Public Key (", key, "): ", str(self._pk[key]))
       else:
-        # TODO: implement keytype = 4 (Ed25519+SLH-DSA-SHAKE-128f). This requires waiting for the PQ software scene to settle a bit.
-        #       For password provisioning, we need to be able to deterministically generate a keypair from a pasword.
-        #       This requires access to a keypair generation function that takes as input a seed. As of Nov. 2024,
-        #       allowed seed formats (and hence software support therein) is still in flux in the NIST pqcrypto
-        #       effort. Once that settles, this can be updated to support provisioning different key types.
         raise NotImplementedError
     print("")
 
@@ -128,12 +133,17 @@ class PasswordROT(object):
       self._pk = SignPublicKey(self._pk)
       self._sk = SignSecretKey(self._sk)
       print("  Root Public Key: ", str(self._pk))
+    elif keytype == 4:
+      # TODO: We also need a variant of pyspx to deterministically generate a keypair from a seed
+      # until that capability is added to liboqs
+      import pyspx_slhdsa.shake_128f
+      self._seed = pysodium.crypto_pwhash_scryptsalsa208sha256(pysodium.crypto_sign_SEEDBYTES+pyspx_slhdsa.shake_128f.crypto_sign_SEEDBYTES, password, self._salt, opslimit=self._ops, memlimit=self._mem) # first 32 bytes Ed25519, next 96 bytes SLH-DSA-SHAKE-128f
+      pk1,sk1 = pysodium.crypto_sign_seed_keypair(self._seed[0:pysodium.crypto_sign_SEEDBYTES])
+      pk2,sk2 = pyspx_slhdsa.shake_128f.generate_keypair(self._seed[pysodium.crypto_sign_SEEDBYTES:])
+      self._pk = SignPublicKey([4,[pk1,pk2]])
+      self._sk = SignSecretKey([4,[sk1,sk2]])
+      print("  Root Public Key: ", str(self._pk))
     else:
-      # TODO: implement keytype = 4 (Ed25519+SLH-DSA-SHAKE-128f). This requires waiting for the PQ software scene to settle a bit.
-      #       For password provisioning, we need to be able to deterministically generate a keypair from a pasword.
-      #       This requires access to a keypair generation function that takes as input a seed. As of Nov. 2024,
-      #       allowed seed formats (and hence software support therein) is still in flux in the NIST pqcrypto
-      #       effort. Once that settles, this can be updated to support provisioning different key types.
       raise NotImplementedError
     print("")
 
