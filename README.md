@@ -197,7 +197,7 @@ The script `enable-pq-exchange.py` assists in enabing pq key exchange (see code 
 
 Starting with version v0.9.11.0, kafkacrypto supports key signing using Ed25519+SLH-DSA-SHAKE-128f, a hybrid classical-pq signing algorithm, including the FIPS-standardized SLH-DSA.
 
-The script `enable-pq-signing.py` assists in enabling pq signing.
+To enable pq signing, simply select a PQ signing key when provisioning. Note that provisioning can be run multiple times for a single node to create keys of multiple types.
 
 Note that to use password-based deterministic key provisioners, you also need to install [pyspx-slhdsa](https://github.com/tmcqueen-materials/pyspx-slhdsa). We hope to remove this dependency once liboqs-python exposes seed-based key generation.
 

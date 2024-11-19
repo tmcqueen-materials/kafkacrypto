@@ -184,11 +184,12 @@ if choice<5:
     print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
+# TODO: this assumes there is only one key of each type, which should be true, but...
 eck = CryptoKey(nodeID + ".crypto", keytypes=[keytype])
-if eck.get_num_spk() > 1:
-  print('More than one SPK found! This tool needs updating.')
-  # TODO: implement "select a key for provisioning logic, or add a new key type"
-pk = eck.get_spk()
+for idx in range(0,eck.get_num_spk()):
+  if eck.get_spk(idx).same_type(keytype):
+    break
+pk = eck.get_spk(idx)
 
 poison = [['usages',_usages[key]]]
 if len(topics) > 0:
@@ -210,20 +211,20 @@ print(nodeID, 'public key:', hexlify(pk))
 
 # Third, write config
 kcs = KafkaCryptoStore(nodeID + ".config", nodeID)
-kcs.store_value('chain0', chain, section='chains')
+kcs.store_value('chain'+str(idx), chain, section='chains')
 if kcs.load_value('cryptokey') is None:
   kcs.store_value('cryptokey', "file#" + nodeID + ".crypto")
-kcs.store_value('rot', _msgrot, section='allowlist')
+kcs.store_value('rot'+str(idx), _msgrot, section='allowlist')
 if kcs.load_value('temporary', section='allowlist'):
   print("Found temporary ROT, removing.")
   kcs.store_value('temporary', None, section='allowlist')
 if choice<5:
   kcs.store_value('maxage', _lifetime, section='crypto')
   if _msgchkrot != _msgrot:
-    kcs.store_value('chainrot', _msgchkrot, section='allowlist')
+    kcs.store_value('chainrot'+str(idx), _msgchkrot, section='allowlist')
   # If controller, list of provisioners
   if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
-    kcs.store_value('provisioners0', _msgchainrot, section='allowlist')
+    kcs.store_value('provisioners'+str(idx), _msgchainrot, section='allowlist')
   if kcs.load_value('ratchet') is None:
     kcs.store_value('ratchet', "file#" + nodeID + ".seed")
   if ((choice == 2 or choice == 4)):

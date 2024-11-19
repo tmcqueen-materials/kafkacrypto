@@ -188,7 +188,6 @@ if (choice == 2 or choice == 4):
 # Second, generate identify keypair and chain, and write cryptokey config file
 # TODO: this assumes there is only one key of each type, which should be true, but...
 eck = CryptoKey(nodeID + ".crypto", keytypes=[keytype])
-print(eck.get_num_spk())
 for idx in range(0,eck.get_num_spk()):
   if eck.get_spk(idx).same_type(keytype):
     break
@@ -211,7 +210,7 @@ kcs.store_value('maxage', _lifetime, section='crypto')
 kcs.store_value('chain'+str(idx), chain, section='chains')
 kcs.store_value('rot'+str(idx), _msgrot, section='allowlist')
 if _msgchkrot != _msgrot:
-  kcs.store_value('chainrot', _msgchkrot, section='allowlist')
+  kcs.store_value('chainrot'+str(idx), _msgchkrot, section='allowlist')
 if kcs.load_value('temporary', section='allowlist'):
   print("Found temporary ROT, removing.")
   kcs.store_value('temporary', None, section='allowlist')
