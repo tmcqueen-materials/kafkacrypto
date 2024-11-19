@@ -91,7 +91,7 @@ class KafkaCryptoChainServer(object):
       self._cryptostore.store_value('chain',None,section='crypto')
     chains = self._cryptostore.load_section('chains',defaults=False)
     if not (chains is None):
-      chains = chains.values()
+      chains = list(chains.values())
     self._our_chains = chains
     for idx in range(0, len(self._our_chains)):
       try:
