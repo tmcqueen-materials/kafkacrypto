@@ -21,7 +21,7 @@ _lifetime = 604800 # lifetime (1 week)
 _lifetime_controller = 31622400 # controller lifetime (1 year)
 _ss0_escrow = unhexlify(b'escrow-key-here')
 _rot = unhexlify(b'79f5303a2e1c13fb5f5c3de392004694ae1d556c09dc0003b078136f805972a1')
-_msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
+_msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
 _signedprov = { 'producer': unhexlify(b'XXX'),
@@ -198,12 +198,12 @@ if pathlen != -1:
 poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
 if choice<5:
-  msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, use_bin_type=True))
-  chain = msgpack.packb(msgpack.unpackb(_msgchains[key], raw=False) + [msg], use_bin_type=True)
+  msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True))
+  chain = msgpack.packb(msgpack.unpackb(_msgchains[key], raw=False) + [msg], default=msgpack_default_pack, use_bin_type=True)
 else:
-  print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg, use_bin_type=True)))
+  print('New Chain Server', '(', hexlify(pk), '):', hexlify(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True)))
   msg = unhexlify(input('ROT Signed Value (hex):'))
-  chain = msgpack.packb([msg], use_bin_type=True)
+  chain = msgpack.packb([msg], default=msgpack_default_pack, use_bin_type=True)
   pk2 = process_chain(chain,None,None,allowlist=[_msgrot])[0]
   assert len(pk2) >= 3, "Malformed ROT Signed Value"
 print(nodeID, 'public key:', hexlify(pk))

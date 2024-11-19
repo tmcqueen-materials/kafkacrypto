@@ -37,7 +37,7 @@ class CryptoKey(object):
   def __init__(self, file, keytypes=None):
     self._logger = logging.getLogger(__name__)
     if keytypes is None:
-      keytypes = [4] # Default to Ed25519 only for now
+      keytypes = [1] # Default to Ed25519 only for now
     if (isinstance(file, (str))):
       if (not path.exists(file)):
         self.__init_empty_cryptokey(file)

@@ -20,6 +20,7 @@ setuptools.setup(
   extras_require={
     "kafka-python": ['kafka-python>=1.4.4'],
     "confluent-kafka": ['confluent-kafka>=2'],
+    "pyspx_slhdsa": ['pyspx_slhdsa>=0.5.1'],
   },
   classifiers=[
     "Programming Language :: Python :: 3",
