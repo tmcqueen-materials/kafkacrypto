@@ -297,7 +297,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
         raise ValueError("No matching usage in allowed intersection set.")
       if not validate_poison('pathlen',0,pk):
         raise ValueError("Exceeded allowed pathlen.")
-      return [pk,printable]
+      return [pk,printable,spks]
     except ValueError as e:
       printable.append(str(e))
       last_error = ProcessChainError("Error during Validation:", printable)
@@ -314,7 +314,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
       pk = intersect_certs(pk,pkn,False)
       pk[2] = get_pks(pk[2])
       if pk0 == pk[2] and multimatch(usage, ['key-denylist']) and validate_poison('usages','key-denylist',pk) and validate_poison('pathlen',0,pk):
-        return [pk,[str(printable_cert(pk))]]
+        return [pk,[str(printable_cert(pk))],[pkn[2]]]
   except:
     pass
   raise last_error

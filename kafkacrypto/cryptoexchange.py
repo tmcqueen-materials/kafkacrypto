@@ -99,8 +99,8 @@ class CryptoExchange(object):
       for i in range(0,len(keyidxs)):
         msg0.append(keyidxs[i])
         msg0.append(keys[i])
-      msg0 = msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True)
-      msg0 = nonce + pysodium.crypto_secretbox(msg,nonce,ss)
+      msg0 = msgpack.packb(msg0, default=msgpack_default_pack, use_bin_type=True)
+      msg0 = nonce + pysodium.crypto_secretbox(msg0,nonce,ss)
       # this is then put in a msgpack array with the appropriate max_age, poison, and public key(s)
       poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']]], default=msgpack_default_pack, use_bin_type=True)
       msg0 = msgpack.packb([time()+self.__maxage,poison,[epk[0]],[random0,random1],msg0], default=msgpack_default_pack, use_bin_type=True)
@@ -226,7 +226,7 @@ class CryptoExchange(object):
               lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk(idx)], default=msgpack_default_pack, use_bin_type=True)
               _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
               tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-              provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk(idx)]),self.__cryptokey.sign_spk(lastcert,idx)], default=msgpack_default_pack, use_bin_type=True)
+              provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk(idx)],default=msgpack_default_pack),self.__cryptokey.sign_spk(lastcert,idx)], default=msgpack_default_pack, use_bin_type=True)
               self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
           tchain.append(msg)
           msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
@@ -240,7 +240,7 @@ class CryptoExchange(object):
   def add_allowlist(self, allow):
     self.__allowdenylist_lock.acquire()
     try:
-      pk,_ = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk,_,_ = process_chain(allow,None,'key-allowlist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         apk[2] = get_pks(apk[2])
@@ -263,7 +263,7 @@ class CryptoExchange(object):
   def add_denylist(self, deny):
     self.__allowdenylist_lock.acquire()
     try:
-      pk,_ = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
+      pk,_,_ = process_chain(deny,None,'key-denylist',allowlist=self.__allowlist,denylist=self.__denylist)
       if (len(pk) >= 4):
         apk = msgpack.unpackb(pk[3],raw=True)
         apk[2] = get_pks(apk[2])
@@ -331,12 +331,13 @@ class CryptoExchange(object):
         self._logger.debug("Defaulting new chain for idx=%i to not handle direct requests.", idx)
       try:
         with self.__allowdenylist_lock:
-          pk,_ = process_chain(newchain,None,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
+          pk,_,_ = process_chain(newchain,None,'key-encrypt-request',allowlist=self.__allowlist,denylist=self.__denylist)
         if len(pk) >= 3:
           with self.__spk_chains_lock:
             self._logger.info("  New chain for idx=%i supports direct key requests. Enabling.", idx)
             self.__spk_direct_requests[idx] = True
       except Exception as e:
+        self._logger.debug("".join(format_exception_shim(e)))
         # exceptions when checking direct mean it is not supported
         with self.__spk_chains_lock:
           self._logger.info("  New chain for idx=%i does not support direct key requests. Disabling.", idx)

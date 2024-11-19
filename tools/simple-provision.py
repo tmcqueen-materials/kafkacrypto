@@ -10,7 +10,7 @@ from binascii import unhexlify, hexlify
 from kafkacrypto.cryptokey import CryptoKey
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
-from kafkacrypto.utils import str_encode
+from kafkacrypto.utils import str_encode, msgpack_default_pack
 from kafkacrypto.provisioners import PasswordProvisioner, PasswordROT
 from kafkacrypto import KafkaCryptoStore
 
@@ -52,8 +52,8 @@ while len(password) < 12:
   password = getpass('ROT Password (12+ chars): ')
 rot = PasswordROT(password, keytype)
 
-_rot = bytes(rot._pk)
-_msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
+_rot = rot._pk
+_msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
 
@@ -69,9 +69,9 @@ _signedprov = { 'producer': None,
             'prodcon': None,
           }
 for kn in _signedprov.keys():
-  key=bytes(prov._pk[kn])
-  poison = msgpack.packb([['usages',_usages[kn]]], use_bin_type=True)
-  tosign = msgpack.packb([0,poison,key], use_bin_type=True)
+  key=prov._pk[kn]
+  poison = msgpack.packb([['usages',_usages[kn]]], default=msgpack_default_pack, use_bin_type=True)
+  tosign = msgpack.packb([0,poison,key], default=msgpack_default_pack, use_bin_type=True)
   _signedprov[kn] = rot._sk.crypto_sign(tosign)
 
 _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]], use_bin_type=True),
@@ -186,28 +186,30 @@ if (choice == 2 or choice == 4):
   print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
+# TODO: this assumes there is only one key of each type, which should be true, but...
 eck = CryptoKey(nodeID + ".crypto", keytypes=[keytype])
-if eck.get_num_spk() > 1:
-  print('More than one SPK found! This tool needs updating.')
-  # TODO: implement "select a key for provisioning logic, or add a new key type"
-pk = eck.get_spk()
+print(eck.get_num_spk())
+for idx in range(0,eck.get_num_spk()):
+  if eck.get_spk(idx).same_type(keytype):
+    break
+pk = eck.get_spk(idx)
 
 poison = [['usages',_usages[key]]]
 if len(topics) > 0:
   poison.append(['topics',topics])
 if pathlen != -1:
   poison.append(['pathlen',pathlen])
-poison = msgpack.packb(poison, use_bin_type=True)
-msg = [time()+_lifetime, poison, bytes(pk)]
-msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, use_bin_type=True))
-chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], use_bin_type=True)
+poison = msgpack.packb(poison, default=msgpack_default_pack, use_bin_type=True)
+msg = [time()+_lifetime, poison, pk]
+msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True))
+chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], default=msgpack_default_pack, use_bin_type=True)
 print(nodeID, 'Public Key:', str(pk))
 
 # Third, write config
 kcs = KafkaCryptoStore(nodeID + ".config", nodeID)
 kcs.store_value('maxage', _lifetime, section='crypto')
-kcs.store_value('chain0', chain, section='chains')
-kcs.store_value('rot', _msgrot, section='allowlist')
+kcs.store_value('chain'+str(idx), chain, section='chains')
+kcs.store_value('rot'+str(idx), _msgrot, section='allowlist')
 if _msgchkrot != _msgrot:
   kcs.store_value('chainrot', _msgchkrot, section='allowlist')
 if kcs.load_value('temporary', section='allowlist'):
@@ -215,7 +217,7 @@ if kcs.load_value('temporary', section='allowlist'):
   kcs.store_value('temporary', None, section='allowlist')
 # If controller, list of provisioners
 if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
-  kcs.store_value('provisioners0', _msgchainrot, section='allowlist')
+  kcs.store_value('provisioners'+str(idx), _msgchainrot, section='allowlist')
 if kcs.load_value('cryptokey') is None:
   kcs.store_value('cryptokey', "file#" + nodeID + ".crypto")
 if kcs.load_value('ratchet') is None:

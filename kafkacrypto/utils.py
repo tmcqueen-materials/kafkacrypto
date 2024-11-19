@@ -281,6 +281,9 @@ class AtomicFile(object):
   def __getattr__(self, name):
     return getattr(self.__readfile,name)
 
+  def __str__(self):
+    return str(self.__file)
+
 def atomic_open(file, mode='r', **kwargs):
   mode = kwargs.pop('mode', mode)
   if len(kwargs) > 0 or (mode.lower() != 'r+' and mode.lower() != 'rb+'):

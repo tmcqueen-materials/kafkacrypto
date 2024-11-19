@@ -73,6 +73,7 @@ class PasswordProvisioner(object):
       rot = unhexlify(rot)
     except:
       pass
+    rot = bytes(rot)
     self._salt = {}
     self._salt['producer'] = pysodium.crypto_hash_sha256(b'producer' + rot)[0:pysodium.crypto_pwhash_scryptsalsa208sha256_SALTBYTES]
     self._salt['consumer'] = pysodium.crypto_hash_sha256(b'consumer' + rot)[0:pysodium.crypto_pwhash_scryptsalsa208sha256_SALTBYTES]

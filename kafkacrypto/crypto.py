@@ -195,7 +195,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 if len(ki) > 0:
                   k = msgpack.packb(ki, default=msgpack_default_pack, use_bin_type=True)
                   v2 = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
-                  if not (v is None):
+                  if not (v2 is None):
                     for v in v2:
                       self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
                       self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
