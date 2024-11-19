@@ -194,10 +194,11 @@ class KafkaCrypto(KafkaCryptoBase):
                     s.append(sk['secret'])
                 if len(ki) > 0:
                   k = msgpack.packb(ki, default=msgpack_default_pack, use_bin_type=True)
-                  v = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
-                  if not (v is None):
-                    self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
-                    self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
+                  v2 = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
+                  if not (v2 is None):
+                    for v in v2:
+                      self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
+                      self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
                   else:
                     self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
                 else:
@@ -230,12 +231,13 @@ class KafkaCrypto(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
-            if msg.key == bytes(self._cryptokey.get_spk()):
-              self._logger.debug("Key matches ours. Validating Chain.")
-              newchain = self._cryptoexchange.replace_spk_chain(msg.value)
-              if not (newchain is None):
-                self._logger.info("New chain is superior, using it.")
-                self._cryptostore.store_value('chain',newchain,section='crypto')
+            for idx in range(0, self._cryptokey.get_num_spk()):
+              if msg.key == bytes(self._cryptokey.get_spk(idx)):
+                self._logger.debug("Key matches ours. Validating Chain.")
+                newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+                if not (newchain is None):
+                  self._logger.info("New chain is superior, using it.")
+                  self._cryptostore.store_value('chain'+str(idx),newchain,section='chains')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
             self._logger.info("Received new allowlist message: %s", msg)
             allow = self._cryptoexchange.add_allowlist(msg.value)
@@ -295,10 +297,10 @@ class KafkaCrypto(KafkaCryptoBase):
               if not (k is None) and not (v2 is None):
                 self._logger.info("Sending new subscribe request(s) for root=%s, msgkey=%s", root, k)
                 for v in v2:
-                  self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v)
-                  if self._cryptoexchange.direct_request_spk_chain():
+                  self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v[0])
+                  if v[1]:
                     # if it may succeed, send directly as well
-                    self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v)
+                    self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v[0])
                 self._subs_last[root] = [time(),kis]
               else:
                 self._logger.info("Failed to send new subscribe request for root=%s", root)
@@ -488,7 +490,7 @@ class KafkaCrypto(KafkaCryptoBase):
       self._logger.debug("passed a root in bytes (should be string)")
       root = root.decode('utf-8')
     if (self.MGMT_LONG_KEYINDEX == True):
-      ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_spk())
+      ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_id_spk())
     else:
       ki,ks,kg,vg = self._seed.get_key_value_generators(root)
     self._cur_pgens[root] = ki

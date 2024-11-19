@@ -4,7 +4,7 @@ import logging
 import msgpack
 from os import path
 from kafkacrypto.utils import msgpack_default_pack
-from kafkacrypto.keys import SignPublicKey, KEMPublicKey, KEMSecretKey
+from kafkacrypto.keys import SignPublicKey, SignSecretKey, KEMPublicKey, KEMSecretKey
 
 class CryptoKey(object):
   """Class utilizing file-backed storage to store (long-term) private key
@@ -14,12 +14,18 @@ class CryptoKey(object):
   Keyword Arguments:
           file (str,file): Filename or File IO object for storing crypto info.
                            Must be readable once.
+           keytypes (arr): Optional array of integer specifying the signing
+                           keytypes that must be present. If file is a filename,
+                           any missing keytypes are generated and added to the
+                           file. If file is a File IO object, new keytypes
+                           are *not* added if not present, and instead an error
+                           is generated. Set to None to use default.
   """
   #
   # Per instance, defined in init
   #      __file: File object
-  #       __spk: signing public key
-  #       __ssk: signing private (secret) key
+  #       __spk: list of signing public keys
+  #       __ssk: list of signing private (secret) keys
   #        __ek: private key for (un)wrapping opaque bytes
   #  __ephk_legacy: if true, and if version 1 included in __ephk_ver, then send
   #                 new key requests in legacy format (replies to legacy format
@@ -28,17 +34,22 @@ class CryptoKey(object):
   # Generated ephemerially, on demand:
   #       __esk: dict of encrypting private (secret) keys (by topic and usage and version)
   #
-  def __init__(self, file):
+  def __init__(self, file, keytypes=None):
     self._logger = logging.getLogger(__name__)
+    if keytypes is None:
+      keytypes = [1] # Default to Ed25519 only for now
     if (isinstance(file, (str))):
       if (not path.exists(file)):
-        self.__init_cryptokey(file)
+        self.__init_empty_cryptokey(file)
       with open(file, 'rb') as f:
         data = f.read()
     else:
       data = file.read()
     datalen = len(data)
-    # this should be legacy
+    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes)
+
+  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes):
+    # this could be legacy
     contents = None
     while len(data) and contents is None:
       try:
@@ -50,28 +61,68 @@ class CryptoKey(object):
     if len(contents) == 2:
       # unversioned legacy format, so update
       self._logger.warning("Cryptokey file is unversioned.")
-      contents = [1] + contents + [True,[1]]
-      if (isinstance(file, (str))):
-        self._logger.warning("Cryptokey file updating from unversioned to versioned format.")
+      contents = [2] + [[contents[0]]] + [contents[1]] + [True,[1]]
+      if (isfile):
+        self._logger.warning("Cryptokey file updating from unversioned to version 2 format.")
         with open(file, 'wb') as f:
           f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
     self.__eklock = Lock()
     self.__esk = {}
     if contents[0] == 1:
-      # version 1
-      self.__ssk = contents[1]
-      self.__spk = SignPublicKey(pysodium.crypto_sign_sk_to_pk(self.__ssk))
-      self.__ek = contents[2]
-      self.__ephk_legacy = contents[3]
-      self.__ephk_ver = contents[4]
+      # version 1 (first to support multiple ephemeral key types at once)
+      # update to version 2
+      contents[0] = 2
+      contents[1] = [contents[1]]
+      if (isfile):
+        self._logger.warning("Cryptokey file updating from version 1 to version 2 format.")
+        with open(file, 'wb') as f:
+          f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
+    # At this point, contents is version 2 (supports multiple separate signature key types at once)
+    self.__ssk = []
+    self.__spk = []
+    for ssk in contents[1]:
+      nsk = SignSecretKey(ssk)
+      self.__ssk.append(nsk)
+      self.__spk.append(SignPublicKey(nsk))
+    self.__ek = contents[2]
+    self.__ephk_legacy = contents[3]
+    self.__ephk_ver = contents[4]
+    # make sure all requested keytypes are present (additional ones can also be present)
+    keytypes = set(keytypes)
+    for spk in self.__spk:
+      keytypes = keytypes - set([spk.get_type()])
+    if len(keytypes) > 0 and not isfile:
+      self._logger.error("Cryptokey File IO Object missing requested keytypes = %s", str(keytypes))
+      raise ValueError
+    for kt in keytypes:
+      # generate new keytypes
+      nsk = SignSecretKey(kt)
+      self.__ssk.append(nsk)
+      spk = SignPublicKey(nsk)
+      self.__spk.append(spk)
+      contents[1].append(bytes(nsk))
+      self._logger.warning("  Adding New Public Key: %s", bytes(spk).hex())
+    # Update cryptokey file if new keytypes were created
+    if len(keytypes) > 0:
+      assert isfile # Should always be true because otherwise we errored out earlier
+      self._logger.warning("Cryptokey file updating with new keytypes=%s. Provisioning required for successful operation.", str(keytypes))
+      with open(file, 'wb') as f:
+        f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
 
-  def get_spk(self):
-    return self.__spk
+  def get_num_spk(self):
+    return len(self.__spk)
 
-  def sign_spk(self, msg):
-    if self.__spk.version == 1:
-      return pysodium.crypto_sign(msg, self.__ssk)
-    return None
+  def get_id_spk(self):
+    rv = b''
+    for spk in self.__spk:
+      rv += bytes(spk)
+    return rv
+
+  def get_spk(self, idx=0):
+    return self.__spk[idx]
+
+  def sign_spk(self, msg, idx=0):
+    return self.__ssk[idx].crypto_sign(msg)
 
   def get_epks(self, topic, usage):
     #
@@ -140,10 +191,8 @@ class CryptoKey(object):
     # caller must hold self.__eklock prior to calling
     self.__esk[topic].pop(usage)
 
-  def __init_cryptokey(self, file):
+  def __init_empty_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
-    pk,sk = pysodium.crypto_sign_keypair()
-    self._logger.warning("  Public key: %s", pysodium.crypto_sign_sk_to_pk(sk).hex())
     with open(file, "wb") as f:
-      f.write(msgpack.packb([1,sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
-    self._logger.warning("  CryptoKey Initialized. Provisioning required for successful operation.")
+      f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
+    self._logger.warning("  CryptoKey Initialized.")

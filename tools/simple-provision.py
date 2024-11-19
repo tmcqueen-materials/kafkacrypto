@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+# TODO: Adjust to fully support multiple signing chains
 import pysodium
 import msgpack
 from os import path
@@ -6,9 +7,11 @@ from configparser import ConfigParser
 from time import time
 from getpass import getpass
 from binascii import unhexlify, hexlify
+from kafkacrypto.cryptokey import CryptoKey
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
-from kafkacrypto.utils import PasswordProvisioner, PasswordROT, str_encode
+from kafkacrypto.utils import str_encode, msgpack_default_pack
+from kafkacrypto.provisioners import PasswordProvisioner, PasswordROT
 from kafkacrypto import KafkaCryptoStore
 
 #
@@ -31,14 +34,26 @@ _keys = {    'producer': 'producer',
              'controller': 'consumer',
              }
 
+# Get KeyType
+keytype = 0
+while not (keytype in [1,4]):
+  try:
+    kt = input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? ')
+    if len(kt) == 0:
+      keytype = 1
+    else:
+      keytype = int(kt)
+  except ValueError:
+    pass
+
 # Get ROT first
 password = ''
 while len(password) < 12:
   password = getpass('ROT Password (12+ chars): ')
-rot = PasswordROT(password)
+rot = PasswordROT(password, keytype)
 
 _rot = rot._pk
-_msgrot = msgpack.packb([0,b'\x90',_rot], use_bin_type=True)
+_msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
 _chainrot = _rot
 _msgchainrot = _msgrot
 
@@ -46,7 +61,7 @@ _msgchainrot = _msgrot
 password = ''
 while len(password) < 6:
   password = getpass('Provisioning Password (6+ chars): ')
-prov = PasswordProvisioner(password, _rot)
+prov = PasswordProvisioner(password, _rot, keytype)
 
 # Generate signed chains
 _signedprov = { 'producer': None,
@@ -55,9 +70,9 @@ _signedprov = { 'producer': None,
           }
 for kn in _signedprov.keys():
   key=prov._pk[kn]
-  poison = msgpack.packb([['usages',_usages[kn]]], use_bin_type=True)
-  tosign = msgpack.packb([0,poison,key], use_bin_type=True)
-  _signedprov[kn] = pysodium.crypto_sign(tosign, rot._sk)
+  poison = msgpack.packb([['usages',_usages[kn]]], default=msgpack_default_pack, use_bin_type=True)
+  tosign = msgpack.packb([0,poison,key], default=msgpack_default_pack, use_bin_type=True)
+  _signedprov[kn] = rot._sk.crypto_sign(tosign)
 
 _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]], use_bin_type=True),
                'consumer': msgpack.packb([_signedprov[_keys['consumer']]], use_bin_type=True),
@@ -118,7 +133,7 @@ else:
   _msgchkrot = _msgchainrot
 assert (len(_msgchains[key]) > 0), 'A trusted chain for ' + key + ' is missing. This should not happen with simple-provision, please report as a bug.'
 pk = process_chain(_msgchains[key],None,None,allowlist=[_msgchkrot])[0]
-assert (len(pk) >= 3 and bytes(pk[2]) == bytes(prov._pk[_keys[key]])), 'Malformed chain for ' + key + '. Did you enter your passwords correctly?'
+assert (len(pk) >= 3 and pk[2] == prov._pk[_keys[key]]), 'Malformed chain for ' + key + '. Did you enter your passwords correctly?'
 
 topics = None
 while topics is None:
@@ -171,43 +186,37 @@ if (choice == 2 or choice == 4):
   print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
-if path.exists(nodeID + ".crypto"):
-  with open(nodeID + ".crypto", "rb+") as f:
-    sk,rb = msgpack.unpackb(f.read(),raw=True)
-    pk = pysodium.crypto_sign_sk_to_pk(sk)
-    f.seek(0,0)
-    f.write(msgpack.packb([sk,rb], use_bin_type=True))
-    f.flush()
-    f.truncate()
-else:
-  pk,sk = pysodium.crypto_sign_keypair()
-  with open(nodeID + ".crypto", "wb") as f:
-    f.write(msgpack.packb([sk,pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES)], use_bin_type=True))
+# TODO: this assumes there is only one key of each type, which should be true, but...
+eck = CryptoKey(nodeID + ".crypto", keytypes=[keytype])
+for idx in range(0,eck.get_num_spk()):
+  if eck.get_spk(idx).same_type(keytype):
+    break
+pk = eck.get_spk(idx)
 
 poison = [['usages',_usages[key]]]
 if len(topics) > 0:
   poison.append(['topics',topics])
 if pathlen != -1:
   poison.append(['pathlen',pathlen])
-poison = msgpack.packb(poison, use_bin_type=True)
+poison = msgpack.packb(poison, default=msgpack_default_pack, use_bin_type=True)
 msg = [time()+_lifetime, poison, pk]
-msg = pysodium.crypto_sign(msgpack.packb(msg, use_bin_type=True), prov._sk[_keys[key]])
-chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], use_bin_type=True)
-print(nodeID, 'public key:', hexlify(pk))
+msg = prov._sk[_keys[key]].crypto_sign(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True))
+chain = msgpack.packb(msgpack.unpackb(_msgchains[key],raw=False) + [msg], default=msgpack_default_pack, use_bin_type=True)
+print(nodeID, 'Public Key:', str(pk))
 
 # Third, write config
 kcs = KafkaCryptoStore(nodeID + ".config", nodeID)
 kcs.store_value('maxage', _lifetime, section='crypto')
-kcs.store_value('chain', chain, section='crypto')
-kcs.store_value('rot', _msgrot, section='allowlist')
+kcs.store_value('chain'+str(idx), chain, section='chains')
+kcs.store_value('rot'+str(idx), _msgrot, section='allowlist')
 if _msgchkrot != _msgrot:
-  kcs.store_value('chainrot', _msgchkrot, section='allowlist')
+  kcs.store_value('chainrot'+str(idx), _msgchkrot, section='allowlist')
 if kcs.load_value('temporary', section='allowlist'):
   print("Found temporary ROT, removing.")
   kcs.store_value('temporary', None, section='allowlist')
 # If controller, list of provisioners
 if (choice == 1 and _msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
-  kcs.store_value('provisioners0', _msgchainrot, section='allowlist')
+  kcs.store_value('provisioners'+str(idx), _msgchainrot, section='allowlist')
 if kcs.load_value('cryptokey') is None:
   kcs.store_value('cryptokey', "file#" + nodeID + ".crypto")
 if kcs.load_value('ratchet') is None:

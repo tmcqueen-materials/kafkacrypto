@@ -157,9 +157,10 @@ kcs.store_value('value2', 'value-of-value2')
 kafkacrypto has been extensively tested with kafka-python. It will use confluent_kafka if available via a thin compatibility wrapper. Other wrappers can be added (submit a pull request!)
 
 ## Post Quantum Secure Cryptography
-Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25519+sntrup761, a hybrid classical-pq key exchange algorithm. This mirrors support for the same hybrid added in OpenSSH 8.9. It must be enabled on both producers and consumers to be used in lieu of the pure-classical method. The script `enable-pqcrypto.py` assists in enabing it.
 
-Use also requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761 algorithm enabled (the default).
+### Prerequisites
+
+Use requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761 algorithm enabled (the default).
 
 For raspberry pis and other devices not officially supported by liqoqs, the following may help:
 ```
@@ -183,6 +184,22 @@ sudo pip3 install .
 # the below may or may not be needed, depending on raspi os version
 sudo ldconfig
 ```
+
+### Key Exchange
+
+Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25519+sntrup761, a hybrid classical-pq key exchange algorithm. This mirrors support for the same hybrid added in OpenSSH 8.5.
+
+Starting with version v0.9.11.0, kafkacrypto supports key exchange using Curve25519+ML-KEM-1024, a hybrid classical-pq key exchange algorithm, including the FIPS-standardized ML-KEM.
+
+The script `enable-pq-exchange.py` assists in enabing pq key exchange (see code documentation). It must be enabled on both consumers and producers.
+
+### Signing Keys
+
+Starting with version v0.9.11.0, kafkacrypto supports key signing using Ed25519+SLH-DSA-SHAKE-128f, a hybrid classical-pq signing algorithm, including the FIPS-standardized SLH-DSA.
+
+To enable pq signing, simply select a PQ signing key when provisioning. Note that provisioning can be run multiple times for a single node to create keys of multiple types.
+
+Note that to use password-based deterministic key provisioners, you also need to install [pyspx-slhdsa](https://github.com/tmcqueen-materials/pyspx-slhdsa). We hope to remove this dependency once liboqs-python exposes seed-based key generation.
 
 ## Advanced Usage
 kafkacrypto has been designed to seamlessly support a range of key exchange authorization and delegation mechanisms beyond the simple single-password root of trust. An example of a simple "controller-based" intermediary is included in the main package. The requisite controller can be setup as:

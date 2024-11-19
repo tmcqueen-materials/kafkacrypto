@@ -9,7 +9,7 @@ print(contents)
 if len(contents) < 5:
   print("Cryptokey file is not in a versioned format.")
   exit(1)
-contents[4] = [2,1] # change to [2] to enable *only* the Curve25519+sntrup761 hybrid, and to [1] to enable only non-pq key exchange
+contents[4] = [5,2,1] # 5 = Curve25519+ML-KEM-1024, 2 = Curve25519+sntrup761 hybrid, 1 = non-pq curve25519
 with open(file, 'wb') as f:
   f.write(msgpack.packb(contents, use_bin_type=True))
 with open(file, 'rb') as f:

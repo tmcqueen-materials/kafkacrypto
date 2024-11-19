@@ -124,12 +124,13 @@ class KafkaCryptoController(KafkaCryptoBase):
           elif topic == self.MGMT_TOPIC_CHAINS:
             # New candidate public key chain
             self._logger.info("Received new chain message: %s", msg)
-            if msg.key == bytes(self._cryptokey.get_spk()):
-              self._logger.debug("Key matches ours. Validating Chain.")
-              newchain = self._cryptoexchange.replace_spk_chain(msg.value)
-              if not (newchain is None):
-                self._logger.info("New chain is superior, using it.")
-                self._cryptostore.store_value('chain',newchain,section='crypto')
+            for idx in range(0, self._cryptokey.get_num_spk()):
+              if msg.key == bytes(self._cryptokey.get_spk(idx)):
+                self._logger.debug("Key matches ours. Validating Chain.")
+                newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+                if not (newchain is None):
+                  self._logger.info("New chain is superior, using it.")
+                  self._cryptostore.store_value('chain'+str(idx),newchain,section='chains')
           elif topic == self.MGMT_TOPIC_ALLOWLIST:
             self._logger.info("Received new allowlist message: %s", msg)
             allow = self._cryptoexchange.add_allowlist(msg.value)
