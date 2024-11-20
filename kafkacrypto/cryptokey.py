@@ -14,12 +14,15 @@ class CryptoKey(object):
   Keyword Arguments:
           file (str,file): Filename or File IO object for storing crypto info.
                            Must be readable once.
-           keytypes (arr): Optional array of integer specifying the signing
+           keytypes (arr): Optional array of integers specifying the signing
                            keytypes that must be present. If file is a filename,
                            any missing keytypes are generated and added to the
                            file. If file is a File IO object, new keytypes
                            are *not* added if not present, and instead an error
-                           is generated. Set to None to use default.
+                           is generated.
+     force_keytypes(bool): If true, *only* the specified keytypes will be
+                           enabled for use. Unlisted keytypes will *not* be
+                           removed from the input file.
   """
   #
   # Per instance, defined in init
@@ -34,10 +37,12 @@ class CryptoKey(object):
   # Generated ephemerially, on demand:
   #       __esk: dict of encrypting private (secret) keys (by topic and usage and version)
   #
-  def __init__(self, file, keytypes=None):
+  def __init__(self, file, keytypes=None, force_keytypes=False):
     self._logger = logging.getLogger(__name__)
-    if keytypes is None:
-      keytypes = [1] # Default to Ed25519 only for now
+    if keytypes is None and force_keytypes:
+      keytypes = [1] # Default to only Ed25519 for now.
+    elif keytypes is None:
+      keytypes = [] # Do not force any specific key types.
     if (isinstance(file, (str))):
       if (not path.exists(file)):
         self.__init_empty_cryptokey(file)
@@ -46,9 +51,9 @@ class CryptoKey(object):
     else:
       data = file.read()
     datalen = len(data)
-    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes)
+    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes, force_keytypes)
 
-  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes):
+  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes, force_keytypes):
     # this could be legacy
     contents = None
     while len(data) and contents is None:
@@ -77,13 +82,16 @@ class CryptoKey(object):
         self._logger.warning("Cryptokey file updating from version 1 to version 2 format.")
         with open(file, 'wb') as f:
           f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
-    # At this point, contents is version 2 (supports multiple separate signature key types at once)
+    # At this point, contents is version 2 (supports multiple separate signature key types at once),
+    # and so we can choose not to include all keytypes if only some are requested
     self.__ssk = []
     self.__spk = []
     for ssk in contents[1]:
       nsk = SignSecretKey(ssk)
-      self.__ssk.append(nsk)
-      self.__spk.append(SignPublicKey(nsk))
+      if not force_keytypes or nsk.get_type() in keytypes:
+        # Include if not forcing or if it matches a type we are including.
+        self.__ssk.append(nsk)
+        self.__spk.append(SignPublicKey(nsk))
     self.__ek = contents[2]
     self.__ephk_legacy = contents[3]
     self.__ephk_ver = contents[4]
