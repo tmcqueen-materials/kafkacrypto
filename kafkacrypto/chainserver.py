@@ -31,7 +31,7 @@ class KafkaCryptoChainServer(object):
                             set_cryptokey)
            cryptokey (obj): Optional object implementing the
                             necessary public/private key functions
-                            (get_id/get_num/get/sign_spk,get/use_epks,
+                            (limit/get_id/get_num/get/sign_spk,get/use_epks,
                             wrap/unwrap_opaque).
                             Set to None to load from the default
                             location in the configuration file.
@@ -61,13 +61,26 @@ class KafkaCryptoChainServer(object):
       cryptokey = self._cryptostore.load_value('cryptokey')
       if cryptokey.startswith('file#'):
         cryptokey = cryptokey[5:]
-    if (isinstance(cryptokey,(str))):
-      cryptokey = CryptoKey(file=cryptokey)
-    if (not hasattr(cryptokey, 'get_id_spk') or not inspect.isroutine(cryptokey.get_id_spk) or not hasattr(cryptokey, 'get_num_spk') or not inspect.isroutine(cryptokey.get_num_spk) or
+
+    # Determine keytypes
+    keytypes = self._cryptostore.load_value('keytypes')
+    if isinstance(keytypes,(int,)):
+      keytypes = [keytypes]
+    elif not (keytypes is None):
+      keytypes = [int(kt.strip()) for kt in keytypes.split(',')]
+    # Open cryptokey file if necessary, making sure specified keytypes are available
+    if (isinstance(cryptokey,(str,))):
+      cryptokey = CryptoKey(file=cryptokey,keytypes=keytypes)
+    if (not hasattr(cryptokey, 'limit_spk') or not inspect.isroutine(cryptokey.limit_spk) or
+        not hasattr(cryptokey, 'get_id_spk') or not inspect.isroutine(cryptokey.get_id_spk) or not hasattr(cryptokey, 'get_num_spk') or not inspect.isroutine(cryptokey.get_num_spk) or
         not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
         not hasattr(cryptokey, 'get_epks') or not inspect.isroutine(cryptokey.get_epks) or not hasattr(cryptokey, 'use_epks') or not inspect.isroutine(cryptokey.use_epks) or
         not hasattr(cryptokey, 'wrap_opaque') or not inspect.isroutine(cryptokey.wrap_opaque) or not hasattr(cryptokey, 'unwrap_opaque') or not inspect.isroutine(cryptokey.unwrap_opaque)):
       raise KafkaCryptoChainServerError("Invalid cryptokey source supplied!")
+    if not (keytypes is None):
+      # Limit available keytypes
+      self._logger.info("Using only keytypes=%s", str(keytypes))
+      cryptokey.limit_spk(keytypes)
     self._cryptokey = cryptokey
     self._cryptostore.set_cryptokey(self._cryptokey)
 
@@ -99,7 +112,8 @@ class KafkaCryptoChainServer(object):
       except:
         self._logger.warning("Chain server chain idx=%i is in legacy format. This should be corrected.", idx)
         self._our_chains[idx] = msgpack.packb(msgpack.unpackb(self._our_chains[idx],raw=True), default=msgpack_default_pack, use_bin_type=True)
-      # Validate chain
+      # Validate chain(s)
+      # TODO: Should we gracefully handle cases where the listing of chains in the file does not match the order of keys in the .crypto file?
       pk,pkprint,_ = process_chain(self._our_chains[idx],None,None,allowlist=self._allowlist)
       if pk[2] != self._cryptokey.get_spk(idx=idx):
         raise KafkaCryptoChainServerError("Chain for idx=" + str(idx) + " does not match public key: " + str(pkprint))
