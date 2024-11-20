@@ -20,9 +20,6 @@ class CryptoKey(object):
                            file. If file is a File IO object, new keytypes
                            are *not* added if not present, and instead an error
                            is generated.
-     force_keytypes(bool): If true, *only* the specified keytypes will be
-                           enabled for use. Unlisted keytypes will *not* be
-                           removed from the input file.
   """
   #
   # Per instance, defined in init
@@ -37,12 +34,10 @@ class CryptoKey(object):
   # Generated ephemerially, on demand:
   #       __esk: dict of encrypting private (secret) keys (by topic and usage and version)
   #
-  def __init__(self, file, keytypes=None, force_keytypes=False):
+  def __init__(self, file, keytypes=None):
     self._logger = logging.getLogger(__name__)
-    if keytypes is None and force_keytypes:
-      keytypes = [1] # Default to only Ed25519 for now.
-    elif keytypes is None:
-      keytypes = [] # Do not force any specific key types.
+    if keytypes is None:
+      keytypes = [] # Do not require any specific key types.
     if (isinstance(file, (str))):
       if (not path.exists(file)):
         self.__init_empty_cryptokey(file)
@@ -51,9 +46,9 @@ class CryptoKey(object):
     else:
       data = file.read()
     datalen = len(data)
-    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes, force_keytypes)
+    self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes)
 
-  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes, force_keytypes):
+  def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes):
     # this could be legacy
     contents = None
     while len(data) and contents is None:
@@ -82,22 +77,19 @@ class CryptoKey(object):
         self._logger.warning("Cryptokey file updating from version 1 to version 2 format.")
         with open(file, 'wb') as f:
           f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
-    # At this point, contents is version 2 (supports multiple separate signature key types at once),
-    # and so we can choose not to include all keytypes if only some are requested
-    self.__ssk = []
-    self.__spk = []
+    # At this point, contents is version 2 (supports multiple separate signature key types at once)
+    self.__ssk_all = []
+    self.__spk_all = []
     for ssk in contents[1]:
       nsk = SignSecretKey(ssk)
-      if not force_keytypes or nsk.get_type() in keytypes:
-        # Include if not forcing or if it matches a type we are including.
-        self.__ssk.append(nsk)
-        self.__spk.append(SignPublicKey(nsk))
+      self.__ssk_all.append(nsk)
+      self.__spk_all.append(SignPublicKey(nsk))
     self.__ek = contents[2]
     self.__ephk_legacy = contents[3]
     self.__ephk_ver = contents[4]
     # make sure all requested keytypes are present (additional ones can also be present)
     keytypes = set(keytypes)
-    for spk in self.__spk:
+    for spk in self.__spk_all:
       keytypes = keytypes - set([spk.get_type()])
     if len(keytypes) > 0 and not isfile:
       self._logger.error("Cryptokey File IO Object missing requested keytypes = %s", str(keytypes))
@@ -105,9 +97,9 @@ class CryptoKey(object):
     for kt in keytypes:
       # generate new keytypes
       nsk = SignSecretKey(kt)
-      self.__ssk.append(nsk)
+      self.__ssk_all.append(nsk)
       spk = SignPublicKey(nsk)
-      self.__spk.append(spk)
+      self.__spk_all.append(spk)
       contents[1].append(bytes(nsk))
       self._logger.warning("  Adding New Public Key: %s", bytes(spk).hex())
     # Update cryptokey file if new keytypes were created
@@ -116,6 +108,22 @@ class CryptoKey(object):
       self._logger.warning("Cryptokey file updating with new keytypes=%s. Provisioning required for successful operation.", str(keytypes))
       with open(file, 'wb') as f:
         f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
+    # We start with all keytypes enabled; this can be changed by a limit_spk call.
+    self.__ssk = self.__ssk_all.copy()
+    self.__spk = self.__spk_all.copy()
+
+  def limit_spk(self, keytypes):
+    # Limit available spk's to just those keytypes specified (as a list of integers). This does not
+    # remove other key types from the file, but does remove them from view of callers (e.g. get_num_spk
+    # is reduced, get_id_spk changes, get_spk indexing changes, etc).
+    # Usually used once, on startup, to restrict which keytypes are available.
+    self.__ssk = []
+    self.__spk = []
+    for idx in range(0, len(self.__ssk_all)):
+      if self.__ssk_all[idx].get_type() in keytypes:
+        # Include if not forcing or if it matches a type we are including.
+        self.__ssk.append(self.__ssk_all[idx])
+        self.__spk.append(self.__spk_all[idx])
 
   def get_num_spk(self):
     return len(self.__spk)
