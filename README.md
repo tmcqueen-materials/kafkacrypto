@@ -160,7 +160,7 @@ kafkacrypto has been extensively tested with kafka-python. It will use confluent
 
 ### Prerequisites
 
-Use requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761 algorithm enabled (the default).
+Use requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761, ML-KEM-1024, and SPINCS+-SHAKE-128f-simple algorithms enabled (the default).
 
 For raspberry pis and other devices not officially supported by liqoqs, the following may help:
 ```
@@ -191,13 +191,13 @@ Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25
 
 Starting with version v0.9.11.0, kafkacrypto supports key exchange using Curve25519+ML-KEM-1024, a hybrid classical-pq key exchange algorithm, including the FIPS-standardized ML-KEM.
 
-The script `enable-pq-exchange.py` assists in enabing pq key exchange (see code documentation). It must be enabled on both consumers and producers.
+The script `enable-pq-exchange.py` assists in enabing pq key exchange. It must be enabled on both consumers and producers. Optionally, it can be used to select only a pq hybrid algorithm (see code documentation).
 
 ### Signing Keys
 
 Starting with version v0.9.11.0, kafkacrypto supports key signing using Ed25519+SLH-DSA-SHAKE-128f, a hybrid classical-pq signing algorithm, including the FIPS-standardized SLH-DSA.
 
-To enable pq signing, simply select a PQ signing key when provisioning. Note that provisioning can be run multiple times for a single node to create keys of multiple types.
+To enable pq signing, simply select a pq signing key when provisioning. Note that provisioning can be run multiple times for a single node to create keys of multiple types. Adding the line `keytypes : 4` just under the cryptokey line in `my-node-ID.config` can be used to enable only hybrid pq signing.
 
 Note that to use password-based deterministic key provisioners, you also need to install [pyspx-slhdsa](https://github.com/tmcqueen-materials/pyspx-slhdsa). We hope to remove this dependency once liboqs-python exposes seed-based key generation.
 

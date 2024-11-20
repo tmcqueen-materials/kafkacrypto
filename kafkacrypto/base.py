@@ -98,8 +98,19 @@ class KafkaCryptoBase(object):
       if (cryptokey is None):
         cryptokey = nodeID + '.crypto'
         self._cryptostore.store_value('cryptokey', 'file#' + cryptokey)
-    if (isinstance(cryptokey,(str))):
-      cryptokey = CryptoKey(file=cryptokey)
+    if (isinstance(cryptokey,(str,))):
+      keytypes = self._cryptostore.load_value('keytypes')
+      if isinstance(keytypes,(int,)):
+        force_keytypes = True
+        keytypes = [keytypes]
+      elif not (keytypes is None):
+        force_keytypes = True
+        keytypes = [int(kt.strip()) for kt in keytypes.split(',')]
+      else:
+        force_keytypes = False
+      if not (keytypes is None):
+        self._logger.info("Using keytypes=%s", str(keytypes))
+      cryptokey = CryptoKey(file=cryptokey,keytypes=keytypes,force_keytypes=force_keytypes)
     if (not hasattr(cryptokey, 'get_id_spk') or not inspect.isroutine(cryptokey.get_id_spk) or not hasattr(cryptokey, 'get_num_spk') or not inspect.isroutine(cryptokey.get_num_spk) or
         not hasattr(cryptokey, 'get_spk') or not inspect.isroutine(cryptokey.get_spk) or not hasattr(cryptokey, 'sign_spk') or not inspect.isroutine(cryptokey.sign_spk) or
         not hasattr(cryptokey, 'get_epks') or not inspect.isroutine(cryptokey.get_epks) or not hasattr(cryptokey, 'use_epks') or not inspect.isroutine(cryptokey.use_epks) or

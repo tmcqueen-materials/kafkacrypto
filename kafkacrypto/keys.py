@@ -232,6 +232,8 @@ class SignSecretKey(object):
       return "(Ed25519-SLH-DSA-SHAKE-128f-Secret, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
     else:
       return "(Unparsable)"
+  def get_type(self):
+    return self.version
   def __eq__(self, pk2):
     if isinstance(pk2, (SignSecretKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
@@ -339,6 +341,8 @@ class KEMPublicKey(object):
       return "(Curve25519-ML-KEM-1024-ct, [" + self.keys[0].hex() + "," + self.keys[1].hex() + "])"
     else:
       return "(Unparsable)"
+  def get_type(self):
+    return self.version
   def __eq__(self, pk2):
     if isinstance(pk2, (KEMPublicKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
@@ -451,6 +455,8 @@ class KEMSecretKey(object):
       return "(Curve25519-ML-KEM-1024-Secret-ct, [" + self.keys[0].hex() + ",[" + self.keys[1][0].hex() + "," + self.keys[1][1].hex() + "," + self.keys[1][2].hex() + "]])"
     else:
       return "(Unparsable)"
+  def get_type(self):
+    return self.version
   def __eq__(self, pk2):
     if isinstance(pk2, (KEMSecretKey,)) and self.version == pk2.version:
       if self.version == 1 and self.keys == pk2.keys:
