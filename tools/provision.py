@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-# TODO: Adjust to support PQ escrow keys, and fully support multiple signing chains.
-import pysodium
+# TODO: Adjust to fully support multiple signing chains.
+from pysodium import randombytes
 import msgpack
 from configparser import ConfigParser
 from time import time
@@ -12,6 +12,7 @@ from kafkacrypto.chain import process_chain
 from kafkacrypto.provisioners import PasswordProvisioner
 from kafkacrypto.cryptokey import CryptoKey
 from kafkacrypto.utils import msgpack_default_pack
+from kafkacrypto.keys import KEMPublicKey
 from kafkacrypto import KafkaCryptoStore
 
 #
@@ -33,7 +34,7 @@ _lifetime_controller = 31622400 # controller lifetime (1 year)
 
 if keytype == 1:
   # Ed25519
-  _ss0_escrow = unhexlify(b'escrow-key-here')
+  _ss0_escrow = KEMPublicKey(unhexlify(b'escrow-key-here'))
   _rot = unhexlify(b'rot-here')
   _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
   _chainrot = _rot
@@ -43,8 +44,8 @@ if keytype == 1:
                   'prodcon': unhexlify(b'XXX'),
                 }
 elif keytype == 4:
-  # Ed25519+SLH-DSA-SHAKE-128f keys
-  _ss0_escrow = unhexlify(b'escrow-key-here')
+  # Ed25519+SLH-DSA-SHAKE-128f keys (25519+ML-KEM-1024 escrow)
+  _ss0_escrow = KEMPublicKey(unhexlify(b'escrow-key-here'))
   _rot = unhexlify(b'rot-here')
   _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
   _chainrot = _rot
@@ -196,13 +197,12 @@ if choice<5:
   else:
     with open(nodeID + ".seed", "wb") as f:
       seedidx = 0
-      rb = pysodium.randombytes(Ratchet.SECRETSIZE)
+      rb = randombytes(Ratchet.SECRETSIZE)
       f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
   if len(_ss0_escrow) > 0:
     print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
-    print('Escrow public key:', hexlify(_ss0_escrow))
-    # TODO: we need an equivalent of crypto_box_seal for the PQ case
-    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)), " (key index", seedidx, ")")
+    print('Escrow public key:', hexlify(bytes(_ss0_escrow)))
+    print(nodeID + ' escrow value: ', hexlify(__ss0_escrow.crypto_box_seal(rb)), " (key index", seedidx, ")")
   else:
     print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
     print(nodeID + ':', hexlify(rb), " (key index", seedidx, ")")

@@ -370,6 +370,21 @@ class KEMPublicKey(object):
       return self.keys
     else:
       return list(self)
+  def crypto_box_seal(self, msg0):
+    if self.version in [1,2,5]:
+      esk = KEMSecretKey(self.version) # create ephemeral keypair of same type
+      nonce = pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES)
+      secret = esk.complete_kem(self) # create initial secret
+      epk = KEMPublicKey(esk) # for KEMs, getting "public part" (=ciphertext) must be done after creating initial secret
+      prefix = len(bytes(epk)).to_bytes(2,'big') + len(nonce).to_bytes(2,'big')
+      # create shared secret as sha256 of (2-bytes epk length) || (2-bytes nonce length) || bytes(self) || bytes(epk) || nonce || secret
+      ss = pysodium.crypto_hash_sha256(prefix + bytes(self) + bytes(epk) + nonce + secret)[0:pysodium.crypto_secretbox_KEYBYTES]
+      # create message as (2-bytes epk length) || (2-bytes nonce length) || bytes(epk) || nonce || secret_box
+      msg = prefix + bytes(epk) + nonce + pysodium.crypto_secretbox(msg0,nonce,ss)
+      return msg
+    else:
+      raise PublicKeyError()
+
 
 # Secret keys used for key exchange.
 # version is an integer that determines the meaning of keys.
@@ -510,5 +525,30 @@ class KEMSecretKey(object):
       part0 = pysodium.crypto_scalarmult_curve25519(self.keys[0],pubkey.keys[0])
       part1 = self.mlkem1024.decap_secret(pubkey.keys[1])
       return part0 + part1
+    else:
+      raise SecretKeyError()
+  def crypto_box_open(self, msg0):
+    if self.version in [1,2,5]:
+      try:
+        # message is (2-bytes epk length) || (2-bytes nonce length) || bytes(epk) || nonce || secret_box
+        # get epk and nonce lengths
+        prefix = msg0[0:4]
+        epklen = int.from_bytes(msg0[0:2],'big')
+        noncelen = int.from_bytes(msg0[2:4],'big')
+        if epklen+noncelen+4 > len(msg0):
+          raise SecretKeyError()
+        epk = KEMPublicKey(msg0[4:(4+epklen)])
+        nonce = msg0[(4+epklen):(4+epklen+noncelen)]
+        ourpk = KEMPublicKey(self) # need our pk before calling complete_kem
+        secret = self.complete_kem(epk) # create initial secret
+        # create shared secret as sha256 of (2-bytes epk length) || (2-bytes nonce length) || bytes(self-pk) || bytes(epk) || nonce || secret
+        ss = pysodium.crypto_hash_sha256(prefix + bytes(ourpk) + bytes(epk) + nonce + secret)[0:pysodium.crypto_secretbox_KEYBYTES]
+        msg = pysodium.crypto_secretbox_open(msg0[(4+epklen+noncelen):],nonce,ss)
+        return msg
+      except Exception as e:
+        if self.version == 1:
+          # might be a direct sealed box (legacy)
+          return pysodium.crypto_box_seal_open(msg0, KEMPublicKey(self).keys, self.keys)
+        raise e
     else:
       raise SecretKeyError()
