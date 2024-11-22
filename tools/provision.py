@@ -202,7 +202,7 @@ if choice<5:
   if len(_ss0_escrow) > 0:
     print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
     print('Escrow public key:', hexlify(bytes(_ss0_escrow)))
-    print(nodeID + ' escrow value: ', hexlify(__ss0_escrow.crypto_box_seal(rb)), " (key index", seedidx, ")")
+    print(nodeID + ' escrow value: ', hexlify(_ss0_escrow.crypto_box_seal(rb)), " (key index", seedidx, ")")
   else:
     print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
     print(nodeID + ':', hexlify(rb), " (key index", seedidx, ")")
