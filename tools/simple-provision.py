@@ -171,19 +171,19 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 # Generate KDF seed first, if needed
 if path.exists(nodeID + ".seed"):
   with open(nodeID + ".seed", "rb+") as f:
-    idx,rb = msgpack.unpackb(f.read(),raw=True)
+    seedidx,rb = msgpack.unpackb(f.read(),raw=True)
     f.seek(0,0)
-    f.write(msgpack.packb([idx,rb], use_bin_type=True))
+    f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
     f.flush()
     f.truncate()
 else:
   with open(nodeID + ".seed", "wb") as f:
-    idx = 0
+    seedidx = 0
     rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-    f.write(msgpack.packb([idx,rb], use_bin_type=True))
+    f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
 if (choice == 2 or choice == 4):
   print('There will be no escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data from this producer unless you store the following value in a secure location:')
-  print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
+  print(nodeID + ':', hexlify(rb), " (key index", seedidx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 # TODO: this assumes there is only one key of each type, which should be true, but...

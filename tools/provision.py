@@ -188,23 +188,24 @@ if choice<5:
 # Generate KDF seed first, if needed
   if path.exists(nodeID + ".seed"):
     with open(nodeID + ".seed", "rb+") as f:
-      idx,rb = msgpack.unpackb(f.read(), raw=True)
+      seedidx,rb = msgpack.unpackb(f.read(), raw=True)
       f.seek(0,0)
-      f.write(msgpack.packb([idx,rb], use_bin_type=True))
+      f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
       f.flush()
       f.truncate()
   else:
     with open(nodeID + ".seed", "wb") as f:
-      idx = 0
+      seedidx = 0
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
-      f.write(msgpack.packb([idx,rb], use_bin_type=True))
+      f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
   if len(_ss0_escrow) > 0:
     print('Escrow key used for initial shared secret. If you lose connectivity for an extended period of time, you will need the following (and the private key for the escrow public key) to access data')
     print('Escrow public key:', hexlify(_ss0_escrow))
-    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)), " (key index", idx, ")")
+    # TODO: we need an equivalent of crypto_box_seal for the PQ case
+    print(nodeID + ' escrow value: ', hexlify(pysodium.crypto_box_seal(rb, _ss0_escrow)), " (key index", seedidx, ")")
   else:
     print('No escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data unless you store the following value in a secure location:')
-    print(nodeID + ':', hexlify(rb), " (key index", idx, ")")
+    print(nodeID + ':', hexlify(rb), " (key index", seedidx, ")")
 
 # Second, generate identify keypair and chain, and write cryptokey config file
 # TODO: this assumes there is only one key of each type, which should be true, but...
