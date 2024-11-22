@@ -14,27 +14,55 @@ from kafkacrypto.cryptokey import CryptoKey
 from kafkacrypto import KafkaCryptoStore
 
 #
+# Need to ask for keytype to load appropriate global configuration
+#
+keytype = 0
+while not (keytype in [1,4]):
+  try:
+    keytype = int(input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? '))
+  except ValueError:
+    keytype = 1
+
+#
 # Global configuration
 #
 
 _lifetime = 604800 # lifetime (1 week)
 _lifetime_controller = 31622400 # controller lifetime (1 year)
-_ss0_escrow = unhexlify(b'escrow-key-here')
-_rot = unhexlify(b'79f5303a2e1c13fb5f5c3de392004694ae1d556c09dc0003b078136f805972a1')
-_msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
-_chainrot = _rot
-_msgchainrot = _msgrot
-_signedprov = { 'producer': unhexlify(b'XXX'),
-                'consumer': unhexlify(b'XXX'),
-                'prodcon': unhexlify(b'XXX'),
-              }
+
+if keytype == 1:
+  # Ed25519+SLH-DSA-SHAKE-128f keys
+  _ss0_escrow = unhexlify(b'escrow-key-here')
+  _rot = unhexlify(b'rot-here')
+  _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
+  _chainrot = _rot
+  _msgchainrot = _msgrot
+  _signedprov = { 'producer': unhexlify(b'XXX'),
+                  'consumer': unhexlify(b'XXX'),
+                  'prodcon': unhexlify(b'XXX'),
+                }
+elif keytype == 4:
+  # Ed25519+SLH-DSA-SHAKE-128f keys
+  _ss0_escrow = unhexlify(b'escrow-key-here')
+  _rot = unhexlify(b'rot-here')
+  _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
+  _chainrot = _rot
+  _msgchainrot = _msgrot
+  _signedprov = { 'producer': unhexlify(b'XXX'),
+                  'consumer': unhexlify(b'XXX'),
+                  'prodcon': unhexlify(b'XXX'),
+                }
+else:
+  assert False, "Invalid Keytype"
+
+# Common configs
 _keys =     {    'producer': 'producer',
                  'consumer': 'consumer',
                  'prodcon': 'prodcon',
                  'prodcon-limited': 'prodcon',
                  'consumer-limited': 'consumer',
                  'controller': 'consumer',
-                 }
+            }
 _msgchains = { 'producer': msgpack.packb([_signedprov[_keys['producer']]], use_bin_type=True),
                'consumer': msgpack.packb([_signedprov[_keys['consumer']]], use_bin_type=True),
                'prodcon': msgpack.packb([_signedprov[_keys['prodcon']]], use_bin_type=True),
@@ -102,12 +130,6 @@ if choice<5:
   password = ''
   while len(password) < 12:
     password = getpass('Provisioning Password (12+ chars): ')
-  keytype = 0
-  while not (keytype in [1,4]):
-    try:
-      keytype = int(input('Key type (1 = Ed25519 (default), 4 = Ed25519+SLH-DSA-SHAKE-128f)? '))
-    except ValueError:
-      keytype = 1
   prov = PasswordProvisioner(password, _rot, keytype)
 
   # Check we have appropriate chains
