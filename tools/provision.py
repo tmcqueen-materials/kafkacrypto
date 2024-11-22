@@ -11,6 +11,7 @@ from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.chain import process_chain
 from kafkacrypto.provisioners import PasswordProvisioner
 from kafkacrypto.cryptokey import CryptoKey
+from kafkacrypto.utils import msgpack_default_pack
 from kafkacrypto import KafkaCryptoStore
 
 #
