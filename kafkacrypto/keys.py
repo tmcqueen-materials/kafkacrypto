@@ -527,7 +527,7 @@ class KEMSecretKey(object):
       return part0 + part1
     else:
       raise SecretKeyError()
-  def crypto_box_open(self, msg0):
+  def crypto_box_seal_open(self, msg0):
     if self.version in [1,2,5]:
       try:
         # message is (2-bytes epk length) || (2-bytes nonce length) || bytes(epk) || nonce || secret_box
