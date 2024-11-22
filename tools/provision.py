@@ -31,7 +31,7 @@ _lifetime = 604800 # lifetime (1 week)
 _lifetime_controller = 31622400 # controller lifetime (1 year)
 
 if keytype == 1:
-  # Ed25519+SLH-DSA-SHAKE-128f keys
+  # Ed25519
   _ss0_escrow = unhexlify(b'escrow-key-here')
   _rot = unhexlify(b'rot-here')
   _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
