@@ -162,6 +162,8 @@ kafkacrypto has been extensively tested with kafka-python. It will use confluent
 
 Use requires installing [liboqs-python](https://github.com/open-quantum-safe/liboqs-python) with the sntrup761, ML-KEM-1024, and SPINCS+-SHAKE-128f-simple algorithms enabled (the default).
 
+This in turn bumps the minimum python version required to 3.7.
+
 For raspberry pis and other devices not officially supported by liqoqs, the following may help:
 ```
 sudo apt-get install cmake ninja-build git
