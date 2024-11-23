@@ -2,7 +2,7 @@
 import msgpack
 import base64
 from kafkacrypto.keys import get_pks
-rot = base64.b64decode('kwDEAZDEIHn1MDouHBP7X1w945IARpSuHVVsCdwAA7B4E2+AWXKh')
+rot = base64.b64decode('rot-chain')
 chain = base64.b64decode('chain-to-analyze')
 try:
   chain=msgpack.unpackb(chain,raw=False)
