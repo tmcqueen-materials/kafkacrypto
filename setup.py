@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
   name="kafkacrypto",
-  version="0.9.11.0dev1",
+  version="0.9.11.0",
   license="GNU GPLv2",
   keywords="kafka kafka-crypto kafka-security security crypo",
   author="Tyrel M. McQueen",
@@ -21,6 +21,7 @@ setuptools.setup(
     "kafka-python": ['kafka-python>=1.4.4'],
     "confluent-kafka": ['confluent-kafka>=2'],
     "pyspx_slhdsa": ['pyspx_slhdsa>=0.5.1'],
+    "liboqs-python": ['liboqs-python>=0.10.0'],
   },
   classifiers=[
     "Programming Language :: Python :: 3",
