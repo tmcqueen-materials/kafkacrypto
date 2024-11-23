@@ -1,9 +1,8 @@
 #!/usr/bin/python3
 # TODO: Adjust to fully support multiple signing chains
-import pysodium
+from pysodium import randombytes
 import msgpack
 from os import path
-from configparser import ConfigParser
 from time import time
 from getpass import getpass
 from binascii import unhexlify, hexlify
@@ -179,7 +178,7 @@ if path.exists(nodeID + ".seed"):
 else:
   with open(nodeID + ".seed", "wb") as f:
     seedidx = 0
-    rb = pysodium.randombytes(Ratchet.SECRETSIZE)
+    rb = randombytes(Ratchet.SECRETSIZE)
     f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
 if (choice == 2 or choice == 4):
   print('There will be no escrow key for initial shared secret. If you lose connectivity for an extended period of time, you may lose access to data from this producer unless you store the following value in a secure location:')

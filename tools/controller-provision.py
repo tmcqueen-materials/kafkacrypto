@@ -24,28 +24,34 @@ while not (keytype in [1,4]):
 # Global configuration
 #
 
-lifetime = 31622400 # chain server default lifetime (1 years)
+lifetime = 31622400 # controller default lifetime (1 years)
 
 if keytype == 1:
   # Ed25519
   _rot = unhexlify(b'rot-here')
   _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
+  _chainrot = _rot
+  _msgchainrot = _msgrot
+  _msgchkrot = _msgrot
 elif keytype == 4:
-  # Ed25519+SLH-DSA-SHAKE-128f keys
+  # Ed25519+SLH-DSA-SHAKE-128f keys (25519+ML-KEM-1024 escrow)
   _rot = unhexlify(b'rot-here')
   _msgrot = msgpack.packb([0,b'\x90',_rot], default=msgpack_default_pack, use_bin_type=True)
+  _chainrot = _rot
+  _msgchainrot = _msgrot
+  _msgchkrot = _msgrot
 else:
   assert False, "Invalid Keytype"
 
 # Common configs
-_usages = {      'chain-server': ['key-encrypt','key-encrypt-subscribe'],
+_usages = {      'controller': ['key-encrypt-request'],
                  }
 
-print('Beginning provisioning process. This should be run on the chain server device being provisioned.')
+print('Beginning provisioning process. This should be run on the controller device being provisioned.')
 nodeID = ''
 while len(nodeID) < 1:
   nodeID = input('Node ID: ')
-key = 'chain-server'
+key = 'controller'
 
 topics = None
 while topics is None:
@@ -58,10 +64,10 @@ while topics is None:
     else:
       topics = ['^.*$']
 
-pathlen=2
+pathlen=1
 pathlen = input('Enter a maximum pathlength (-1 for no limit; default ' + str(pathlen) + '):')
 if len(pathlen)<1:
-  pathlen=2
+  pathlen=1
 else:
   pathlen=int(pathlen)
 
@@ -102,7 +108,7 @@ if pathlen != -1:
   poison.append(['pathlen',pathlen])
 poison = msgpack.packb(poison, use_bin_type=True)
 msg = [time()+lifetime if lifetime!=-1 else 0, poison, pk]
-print('New Chain Server', '(', hexlify(bytes(pk)), '):', hexlify(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True)))
+print('New Controller', '(', hexlify(bytes(pk)), '):', hexlify(msgpack.packb(msg, default=msgpack_default_pack, use_bin_type=True)))
 # TODO: this is the line that can be longer than 4096 bytes
 msg = unhexlify(input('ROT Signed Value (hex):'))
 chain = msgpack.packb([msg], default=msgpack_default_pack, use_bin_type=True)
@@ -119,7 +125,11 @@ kcs.store_value('rot'+str(idx), _msgrot, section='allowlist')
 if kcs.load_value('temporary', section='allowlist'):
   print("Found temporary ROT, removing.")
   kcs.store_value('temporary', None, section='allowlist')
-kcs.store_value("test", "test", section="chainkeys")
-kcs.store_value("test", None, section="chainkeys")
+if lifetime > 0:
+  kcs.store_value('maxage', lifetime, section='crypto')
+if _msgchkrot != _msgrot:
+  kcs.store_value('chainrot'+str(idx), _msgchkrot, section='allowlist')
+if (_msgchainrot != _msgrot and _msgchainrot != _msgchkrot):
+  kcs.store_value('provisioners'+str(idx), _msgchainrot, section='allowlist')
 
-print('Congratulations! Chain server provisioning is complete.')
+print('Congratulations! Controller provisioning is complete.')

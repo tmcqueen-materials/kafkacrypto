@@ -2,7 +2,6 @@
 # TODO: Adjust to fully support multiple signing chains.
 from pysodium import randombytes
 import msgpack
-from configparser import ConfigParser
 from time import time
 from getpass import getpass
 from os import path
