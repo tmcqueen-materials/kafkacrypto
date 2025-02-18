@@ -236,5 +236,5 @@ class CryptoKey(object):
   def __init_empty_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
     with open(file, "wb") as f:
-      f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
+      f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),False,[5,2,1]], default=msgpack_default_pack, use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized.")
