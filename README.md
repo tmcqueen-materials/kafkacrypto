@@ -195,7 +195,7 @@ Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25
 
 Starting with version v0.9.11.0, kafkacrypto supports key exchange using Curve25519+ML-KEM-1024, a hybrid classical-pq key exchange algorithm, including the FIPS-standardized ML-KEM.
 
-Starting with version v0.9.11.0, kafkacrypto enables Curve25519, Curve25519+sntrup761, and Curve25519+ML-KEM-1024 where supported.
+Starting with version v0.9.11.1dev0, kafkacrypto enables Curve25519, Curve25519+sntrup761, and Curve25519+ML-KEM-1024 by default for new CryptoKeys.
 
 The script `enable-pq-exchange.py` assists in enabing pq key exchange. It must be enabled on both consumers and producers. Optionally, it can be used to select only a pq hybrid algorithm (see code documentation).
 
