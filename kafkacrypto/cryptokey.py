@@ -80,18 +80,44 @@ class CryptoKey(object):
     # At this point, contents is version 2 (supports multiple separate signature key types at once)
     self.__ssk_all = []
     self.__spk_all = []
+    self.__ssk_unknown = False
+    # Make sure we instantiate each signing key-type without error before accepting. This allows
+    # for using a cryptokey supporting both pq and non-pq signatures, even if then used on a
+    # deployment where pq crypto is not available. We need to set a flag if unknown key types
+    # were present to not overwrite them when adding additional signature keys below.
     for ssk in contents[1]:
-      nsk = SignSecretKey(ssk)
-      self.__ssk_all.append(nsk)
-      self.__spk_all.append(SignPublicKey(nsk))
+      try:
+        nsk = SignSecretKey(ssk)
+      except:
+        self._logger.warning("Cryptokey File IO Object has at least one unknown keytype.")
+        self.__ssk_unknown = True
+      else:
+        # Do these here so that if ssk and spk end up out of sync, we generate an exception
+        self.__ssk_all.append(nsk)
+        self.__spk_all.append(SignPublicKey(nsk))
+    if len(self.__ssk_all) < 1 and self.__ssk_unknown:
+      self._logger.error("Cryptokey File IO Object has no usable keytypes!")
+      raise ValueError
     self.__ek = contents[2]
     self.__ephk_legacy = contents[3]
-    self.__ephk_ver = contents[4]
+    # Make sure we instantiate each ephemeral key-type without error. This allows for setting a
+    # default to use both pq and non-pq key exchange, even if then used on a deployment where
+    # pq crypto is not available.
+    self.__ephk_ver = []
+    for ephk_ver in contents[4]:
+      try:
+        key = KEMSecretKey(ephk_ver)
+        self.__ephk_ver.append(ephk_ver)
+      except:
+        self._logger.warning("Cryptokey File IO Object cannot use ephemeral keytype=%s", str(ephk_ver))
+    if len(self.__ephk_ver) < 1:
+      self._logger.error("Cryptokey File IO Object has no usable ephemeral keytypes!")
+      raise ValueError
     # make sure all requested keytypes are present (additional ones can also be present)
     keytypes = set(keytypes)
     for spk in self.__spk_all:
       keytypes = keytypes - set([spk.get_type()])
-    if len(keytypes) > 0 and not isfile:
+    if len(keytypes) > 0 and (not isfile or self.__ssk_unknown):
       self._logger.error("Cryptokey File IO Object missing requested keytypes = %s", str(keytypes))
       raise ValueError
     for kt in keytypes:
@@ -105,6 +131,7 @@ class CryptoKey(object):
     # Update cryptokey file if new keytypes were created
     if len(keytypes) > 0:
       assert isfile # Should always be true because otherwise we errored out earlier
+      assert not self.__ssk_unknown # Should always be true because otherwise we errored out earlier
       self._logger.warning("Cryptokey file updating with new keytypes=%s. Provisioning required for successful operation.", str(keytypes))
       with open(file, 'wb') as f:
         f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
@@ -210,5 +237,5 @@ class CryptoKey(object):
   def __init_empty_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
     with open(file, "wb") as f:
-      f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),True,[1]], default=msgpack_default_pack, use_bin_type=True))
+      f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),False,[5,2,1]], default=msgpack_default_pack, use_bin_type=True))
     self._logger.warning("  CryptoKey Initialized.")
