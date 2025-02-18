@@ -89,6 +89,7 @@ class CryptoKey(object):
       try:
         nsk = SignSecretKey(ssk)
       except:
+        self._logger.warning("Cryptokey File IO Object has at least one unknown keytype.")
         self.__ssk_unknown = True
       else:
         # Do these here so that if ssk and spk end up out of sync, we generate an exception
@@ -108,7 +109,7 @@ class CryptoKey(object):
         key = KEMSecretKey(ephk_ver)
         self.__ephk_ver.append(ephk_ver)
       except:
-        pass
+        self._logger.warning("Cryptokey File IO Object cannot use ephemeral keytype=%s", str(ephk_ver))
     if len(self.__ephk_ver) < 1:
       self._logger.error("Cryptokey File IO Object has no usable ephemeral keytypes!")
       raise ValueError
