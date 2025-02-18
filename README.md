@@ -170,18 +170,20 @@ sudo apt-get install cmake ninja-build git
 sudo pip3 install pytest pytest-xdist pyyaml
 mkdir oqs
 cd oqs
-git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs
-git clone --depth 1 --branch main https://github.com/open-quantum-safe/liboqs-python.git
+git clone --depth 1 https://github.com/open-quantum-safe/liboqs
+git clone --depth 1 https://github.com/open-quantum-safe/liboqs-python.git
 cd liboqs
+git checkout 0.11.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
 mkdir build
 cd build
-# newer versions of liboqs disable SIKE/SIDH always and do not require turning off on this command line
-cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_SIKE=OFF -DOQS_ENABLE_KEM_SIDH=OFF
+cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_SIKE=OFF -DOQS_ENABLE_KEM_SIDH=OFF # See next line for version 0.7.2
+# cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_NTRUPRIME=ON -DOQS_ENABLE_KEM_KYBER=ON -DOQS_ENABLE_KEM_BIKE=OFF -DOQS_ENABLE_KEM_FRODOKEM=OFF -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=OFF -DOQS_ENABLE_KEM_HQC=OFF -DOQS_ENABLE_SIG_DILITHIUM=OFF -DOQS_ENABLE_SIG_FALCON=OFF -DOQS_ENABLE_SIG_SPHINCS=OFF -DOQS_ENABLE_SIG_PICNIC=OFF -DOQS_ENABLE_KEM_NTRU=OFF -DOQS_ENABLE_KEM_SABER=OFF -DOQS_ENABLE_SIG_RAINBOW=OFF
 ninja
-# tests will take about 8 hours on a raspberry pi zero (v1)
+# full tests will take about 8 hours on a raspberry pi zero (v1)
 ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
+git checkout 0.10.0 # can use as old as 0.7.2
 sudo pip3 install .
 # the below may or may not be needed, depending on raspi os version
 sudo ldconfig
@@ -192,6 +194,8 @@ sudo ldconfig
 Starting with version v0.9.10.0, kafkacrypto supports key exchange using Curve25519+sntrup761, a hybrid classical-pq key exchange algorithm. This mirrors support for the same hybrid added in OpenSSH 8.5.
 
 Starting with version v0.9.11.0, kafkacrypto supports key exchange using Curve25519+ML-KEM-1024, a hybrid classical-pq key exchange algorithm, including the FIPS-standardized ML-KEM.
+
+Starting with version v0.9.11.0, kafkacrypto enables Curve25519, Curve25519+sntrup761, and Curve25519+ML-KEM-1024 where supported.
 
 The script `enable-pq-exchange.py` assists in enabing pq key exchange. It must be enabled on both consumers and producers. Optionally, it can be used to select only a pq hybrid algorithm (see code documentation).
 
