@@ -94,6 +94,9 @@ class CryptoKey(object):
         # Do these here so that if ssk and spk end up out of sync, we generate an exception
         self.__ssk_all.append(nsk)
         self.__spk_all.append(SignPublicKey(nsk))
+    if len(self.__ssk_all) < 1 and self.__ssk_unknown:
+      self._logger.error("Cryptokey File IO Object has no usable keytypes!")
+      raise ValueError
     self.__ek = contents[2]
     self.__ephk_legacy = contents[3]
     # Make sure we instantiate each ephemeral key-type without error. This allows for setting a
@@ -106,6 +109,9 @@ class CryptoKey(object):
         self.__ephk_ver.append(ephk_ver)
       except:
         pass
+    if len(self.__ephk_ver) < 1:
+      self._logger.error("Cryptokey File IO Object has no usable ephemeral keytypes!")
+      raise ValueError
     # make sure all requested keytypes are present (additional ones can also be present)
     keytypes = set(keytypes)
     for spk in self.__spk_all:
