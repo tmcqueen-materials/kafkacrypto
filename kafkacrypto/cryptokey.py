@@ -88,10 +88,12 @@ class CryptoKey(object):
     for ssk in contents[1]:
       try:
         nsk = SignSecretKey(ssk)
-        self.__ssk_all.append(nsk)
-        self.__spk_all.append(SignPublicKey(nsk))
       except:
         self.__ssk_unknown = True
+      else:
+        # Do these here so that if ssk and spk end up out of sync, we generate an exception
+        self.__ssk_all.append(nsk)
+        self.__spk_all.append(SignPublicKey(nsk))
     self.__ek = contents[2]
     self.__ephk_legacy = contents[3]
     # Make sure we instantiate each ephemeral key-type without error. This allows for setting a
