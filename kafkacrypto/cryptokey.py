@@ -122,7 +122,7 @@ class CryptoKey(object):
     # Update cryptokey file if new keytypes were created
     if len(keytypes) > 0:
       assert isfile # Should always be true because otherwise we errored out earlier
-      assert not self.__ssk_unkown # Should always be true because otherwise we errored out earlier
+      assert not self.__ssk_unknown # Should always be true because otherwise we errored out earlier
       self._logger.warning("Cryptokey file updating with new keytypes=%s. Provisioning required for successful operation.", str(keytypes))
       with open(file, 'wb') as f:
         f.write(msgpack.packb(contents, default=msgpack_default_pack, use_bin_type=True))
