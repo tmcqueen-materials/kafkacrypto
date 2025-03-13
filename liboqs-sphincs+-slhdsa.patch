@@ -1,0 +1,371 @@
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_avx2/fors.c	2025-03-13 07:59:59.122824097 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_avx2/fors.c	2025-03-13 08:52:18.101625809 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_clean/fors.c	2025-03-13 07:59:59.123824103 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128f-simple_clean/fors.c	2025-03-13 08:52:33.743676238 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_avx2/fors.c	2025-03-13 07:59:59.124824110 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_avx2/fors.c	2025-03-13 08:53:01.856768194 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_clean/fors.c	2025-03-13 07:59:59.125824117 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-128s-simple_clean/fors.c	2025-03-13 08:53:20.559830260 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_avx2/fors.c	2025-03-13 07:59:59.126824124 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_avx2/fors.c	2025-03-13 08:53:50.974932652 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_clean/fors.c	2025-03-13 07:59:59.126824124 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192f-simple_clean/fors.c	2025-03-13 08:54:04.890980085 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_avx2/fors.c	2025-03-13 07:59:59.127824131 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_avx2/fors.c	2025-03-13 08:54:28.780062311 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_clean/fors.c	2025-03-13 07:59:59.128824138 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-192s-simple_clean/fors.c	2025-03-13 08:54:56.472158853 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_avx2/fors.c	2025-03-13 07:59:59.128824138 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_avx2/fors.c	2025-03-13 08:55:18.546236709 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_clean/fors.c	2025-03-13 07:59:59.129824144 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256f-simple_clean/fors.c	2025-03-13 08:55:35.941298594 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_avx2/fors.c	2025-03-13 07:59:59.130824151 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_avx2/fors.c	2025-03-13 08:55:52.418357635 -0400
+@@ -120,7 +120,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_clean/fors.c	2025-03-13 07:59:59.131824158 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-sha2-256s-simple_clean/fors.c	2025-03-13 08:56:08.265414793 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_avx2/fors.c	2025-03-13 07:59:59.131824158 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_avx2/fors.c	2025-03-13 08:29:40.857459552 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_clean/fors.c	2025-03-13 07:59:59.132824165 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-128f-simple_clean/fors.c	2025-03-13 08:29:20.120412028 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_avx2/fors.c	2025-03-13 07:59:59.133824172 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_avx2/fors.c	2025-03-13 08:57:06.721628646 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_clean/fors.c	2025-03-13 07:59:59.133824172 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-128s-simple_clean/fors.c	2025-03-13 08:57:20.029677959 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_avx2/fors.c	2025-03-13 07:59:59.134824178 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_avx2/fors.c	2025-03-13 08:57:36.256738368 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_clean/fors.c	2025-03-13 07:59:59.134824178 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-192f-simple_clean/fors.c	2025-03-13 08:57:47.022778621 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_avx2/fors.c	2025-03-13 07:59:59.135824185 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_avx2/fors.c	2025-03-13 08:58:01.166831708 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_clean/fors.c	2025-03-13 07:59:59.136824192 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-192s-simple_clean/fors.c	2025-03-13 08:58:13.592878541 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_avx2/fors.c	2025-03-13 07:59:59.136824192 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_avx2/fors.c	2025-03-13 08:58:30.005940661 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_clean/fors.c	2025-03-13 07:59:59.137824199 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-256f-simple_clean/fors.c	2025-03-13 08:58:44.160994463 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_avx2/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_avx2/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_avx2/fors.c	2025-03-13 07:59:59.137824199 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_avx2/fors.c	2025-03-13 08:58:56.238040534 -0400
+@@ -97,7 +97,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_clean/fors.c liboqs/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_clean/fors.c
+--- liboqs.orig/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_clean/fors.c	2025-03-13 07:59:59.138824205 -0400
++++ liboqs/src/sig/sphincs/pqclean_sphincs-shake-256s-simple_clean/fors.c	2025-03-13 08:59:10.812096337 -0400
+@@ -53,7 +53,7 @@
+     for (i = 0; i < SPX_FORS_TREES; i++) {
+         indices[i] = 0;
+         for (j = 0; j < SPX_FORS_HEIGHT; j++) {
+-            indices[i] ^= (uint32_t)(((m[offset >> 3] >> (offset & 0x7)) & 0x1) << j);
++            indices[i] ^= ((m[offset >> 3] >> (~offset & 0x7)) & 0x1) << (SPX_FORS_HEIGHT - 1 - j);
+             offset++;
+         }
+     }
+diff -uPNr liboqs.orig/tests/KATs/sig/kats.json liboqs/tests/KATs/sig/kats.json
+--- liboqs.orig/tests/KATs/sig/kats.json	2025-03-13 07:59:59.250824965 -0400
++++ liboqs/tests/KATs/sig/kats.json	2025-03-13 09:50:15.079625214 -0400
+@@ -104,52 +104,52 @@
+     "single": "88ed517012434037b5dc0b5120020a0cb3cfff9991e3391cd3067a6251b4e724"
+   },
+   "SPHINCS+-SHA2-128f-simple": {
+-    "all": "4437eb44516630184c3cb5d3a4392e8bb955c2bf59ad17ab3c607fb7b7285780",
+-    "single": "cd1e13db3a56c0a6b3486a7b12bcddfda50cf5d1e4d14d3113e6456e969b8114"
++    "all": "5caa8669e120a2926310bcff8f9d599aa33aae9b4f08456bf5de84a6b566c587",
++    "single": "d6b9f61d8fed0deb69291ae60cb456c42b0a3e69b66cfcc3a9e5d4ef7e8494ac"
+   },
+   "SPHINCS+-SHA2-128s-simple": {
+-    "all": "5fa4dcd4eb4e47c5634fffb5facbf4172cdecb88c0db8182747f19852e567024",
+-    "single": "08c2e0f08bd96f50d065ca0ced04874c709d192864bfeaccb6daa4bfa9c58a28"
++    "all": "71a34229ef06ef84fefffdeb74a89f87f678585d2f52700a3f3606aa933bb4e7",
++    "single": "1c16319284123ebb6a8d029c729daf661757e50289b9b499abe97005f0325411"
+   },
+   "SPHINCS+-SHA2-192f-simple": {
+     "all": "b85a7d9751987c7cde21aaf39b027fa53a392aa78f83d90ffe0194cef7442373",
+     "single": "fd4e301339b29ed5dc392c628d6c6db3d77a46ea61d16f7ff0e2b414f962f44c"
+   },
+   "SPHINCS+-SHA2-192s-simple": {
+-    "all": "a4b56dff6dbe2d026540c76a8469267da2155d4602ba56b3848108862b2fd1b9",
+-    "single": "0fa07f3f77752233b382911bcc19e671522bd57069f9edca39b3924ba2713839"
++    "all": "aafaa7d074149a721be5b015e6e40feef2da280db03e770ae8a4ce2e6f980779",
++    "single": "23e1f7a4d5496b916b8a72cb202a68552a323941eb8b4e0b54408d7d364a0194"
+   },
+   "SPHINCS+-SHA2-256f-simple": {
+-    "all": "9a2da71b2e3f725c96f1f2e5372127602546df2457e1fd4bc3992c460ee48c3e",
+-    "single": "bd88b49453162a9b527e14228f037615d0fcbd13d24b48ece41ae1370ed13480"
++    "all": "0d631574f43a0d8c21883c281d990cf5e65c5fd355372095b5982466ea952308",
++    "single": "01b40932080d9f48ce159c0e95cd135e2df8ee1ab5155af6cfbd356079fdf18a"
+   },
+   "SPHINCS+-SHA2-256s-simple": {
+-    "all": "0bbba98f7944ac0c013fc97030a1df6e257b293edb07797bd135ba50e68c522d",
+-    "single": "05d15a74253962d35912bab3a9ee3230c2e721c798f4e757ecffa529071b0748"
++    "all": "1b32ab78b458f89a808330d1e321411b18d66a265ed4843206d11dd9dd99ec16",
++    "single": "146110b9b6f5786c3b20713640cb7166f97666aa211fc9df22af4ed523b48993"
+   },
+   "SPHINCS+-SHAKE-128f-simple": {
+-    "all": "bffbc82279e959ddf4321ae89e09a6fcb3f90071ad97d88561dce54f93b2ed25",
+-    "single": "46f4f87949dc994aa2b63b31c7307f44ca5ed025d7308ff408c8ba33473324dc"
++    "all": "66a3617518067dd619ed2a1e4ccf30a5b6493045c04c44fffcea82893ca5ccc9",
++    "single": "1809306a47584b472575ec0dd7f74d8bc4cd5a979b528ede3132b883d0fa5f45"
+   },
+   "SPHINCS+-SHAKE-128s-simple": {
+-    "all": "eb6d29b79cb86b8d49cc5bf4027e99672c94394a32fa6979bb0fd1dedcb94283",
+-    "single": "bae2979565dabad96d885a1e264bc213ab54aff3c3b4308880b788e87702af3b"
++    "all": "6ef0faf49a150a0fe4fbfdd1e0642a593038d7f14353b5c02bf6259bf9437fe8",
++    "single": "d031acaca4aa1bbdecefc526585e3e0dc0198fc8ffc3704f21500e965cd92160"
+   },
+   "SPHINCS+-SHAKE-192f-simple": {
+     "all": "dd5206f128651f0bdebca17205743c6420af7828f3f6fdb68d3175a85138d377",
+     "single": "60a9d2fd74adbef971a74477eca3170599beb4476d6428ced78b43b9641cc929"
+   },
+   "SPHINCS+-SHAKE-192s-simple": {
+-    "all": "dc398029c3d1d5ab935030a5cd0c2d2e8eccd14074a9921b49a6f7479769fa16",
+-    "single": "87aedb87a77cb46f939a3bfd0099b08b0d889c9fa46be00f15c36827c117c838"
++    "all": "f6fe6294008e52d0e910bef54a3d42af79b7863187796afcd2b9dcefa0dfca5d",
++    "single": "d41b1371b20c68bfe33835d85b7e17f68d629826f99515809a1c96d81c0db74a"
+   },
+   "SPHINCS+-SHAKE-256f-simple": {
+-    "all": "fcb47ba4fecbbcefea6c1012f67a796e5f3159bdcd4192a0ba17925d6d87a5a3",
+-    "single": "f6d0825afeb4ce25943c974a0efde5659ceea927d2507b0ea1a92e092f536acd"
++    "all": "c95a3704270d679bdb194b6d036b5f1bc2fbb77737d086e00229853106981094",
++    "single": "8f4134f808a7a4a28845daa2603c6e8dc778fd4cb36b7055b699afc7c656eb3e"
+   },
+   "SPHINCS+-SHAKE-256s-simple": {
+-    "all": "dadcf175289c25aaa530a389cc84154dc4331fabda06ffaf2a292944e4d03841",
+-    "single": "37d37c9b43d71341b7dd5da7f8ebbe8bbae3d7bfc53f5378446023cbcf6e04f2"
++    "all": "3fa0305da62ab1964cd4140f47e9f013f774b0d5f60173f2087cd93e96455168",
++    "single": "3419511e636cb2299e8d43ba47097ffff6df8f7aca2aacfdb770a2c63647c7d5"
+   },
+   "cross-rsdp-128-balanced": {
+     "all": "7b12a6f71166cde8289c732b3107eaa21edf59c2f336b0921a62faa93980de77",
+@@ -223,4 +223,4 @@
+     "all": "dda985a30c9af0f472dda305fdde3942d19ec4ae4189a36c6a4612db1b58ad39",
+     "single": "f4fc8719a1bf18bc016ea7b2d172110cf82bc464d595014d9f4a72b6eb196470"
+   }
+-}
+\ No newline at end of file
++}
