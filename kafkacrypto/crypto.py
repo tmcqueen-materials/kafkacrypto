@@ -204,7 +204,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 else:
                   self._logger.info("No keys for root=%s to send to new receiver.", root)
             except Exception as e:
-              self._parent._logger.warning("".join(format_exception_shim(e)))
+              self._logger.warning("".join(format_exception_shim(e)))
           elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
             root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
             # New key(s)
@@ -259,7 +259,7 @@ class KafkaCrypto(KafkaCryptoBase):
       try:
         self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
       except Exception as e:
-        self._parent._logger.warning("".join(format_exception_shim(e)))
+        self._logger.warning("".join(format_exception_shim(e)))
 
       # Second, deal with subscription changes
       self._lock.acquire()
@@ -317,7 +317,7 @@ class KafkaCrypto(KafkaCryptoBase):
       try:
         self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
       except Exception as e:
-        self._parent._logger.warning("".join(format_exception_shim(e)))
+        self._logger.warning("".join(format_exception_shim(e)))
 
       # Fourth, periodically increment ratchet and prune old keys
       self._logger.debug("Checking ratchet time.")
