@@ -191,7 +191,7 @@ def printable_cert(cert):
     rv.append(str(cert))
   return rv
 
-def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
+def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None, checktime=time):
   #
   # chain should be a single msgpack array, with the next item in the array
   # signed by the entity with public key given in the current item. The first
@@ -289,7 +289,7 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None):
       if denylisted:
         raise ValueError("Chain uses denylisted public key")
       # ensure composite chain is valid
-      if (pk[0]<time() and pk[0]!=0):
+      if (pk[0]<checktime() and pk[0]!=0):
         raise ValueError("Expired Chain!")
       if not validate_poison('topics',topic,pk):
         raise ValueError("No matching topic in allowed intersection set.")
