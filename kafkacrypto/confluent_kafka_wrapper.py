@@ -247,7 +247,7 @@ class KafkaConsumer(Consumer):
     for msg in msgs:
       if not (msg is None) and msg.error() is None:
         rvk = TopicPartition(msg.topic(),msg.partition())
-        rv = Message(rvk.topic, rvk.partition, msg.offset(), msg.timestamp(), msg.headers(), self.kds(rvk.topic,msg.key()), self.vds(rvk.topic,msg.value()))
+        rv = Message(rvk.topic, rvk.partition, msg.offset(), msg.timestamp()[1] if msg.timestamp()[0]!=TIMESTAMP_NOT_AVAILABLE else None, msg.headers(), self.kds(rvk.topic,msg.key()), self.vds(rvk.topic,msg.value()))
         if rvk in rvm.keys():
           rvm[rvk].append(rv)
         else:
