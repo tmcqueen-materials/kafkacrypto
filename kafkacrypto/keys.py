@@ -19,35 +19,56 @@ try:
   try:
     if len(slh_sig_impl) < 1 and oqs.Signature("SLH_DSA_PURE_SHAKE_128F").verify(slh_msg,slh_sig,slh_pk):
       slh_sig_impl = "SLH_DSA_PURE_SHAKE_128F"
+      class SLHDSASHAKE128fSignature(oqs.Signature):
+        siglen = 17088
+        # Empty context string
+        ctx = b''
+        def __init__(self, secret_key=None):
+          if not (secret_key is None):
+            self.public_key = secret_key[-32:] # last 32 bytes of secret key is the public key
+          super().__init__("SLH_DSA_PURE_SHAKE_128F", secret_key=secret_key)
+        def sign(self, message):
+          return super().sign_with_ctx_str(message, self.ctx)
+        def verify(self, message, signature, public_key):
+          return super().verify_with_ctx_str(message, signature, self.ctx, public_key)
+        def generate_keypair(self):
+          pk = super().generate_keypair()
+          self.public_key = bytes(pk)
+          return self.public_key,self.export_secret_key()
+        def export_public_key(self):
+          return bytes(self.public_key)
+        def export_secret_key(self):
+          return bytes(super().export_secret_key())
   except:
     pass
   try:
     if len(slh_sig_impl) < 1 and oqs.Signature("SPHINCS+-SHAKE-128f-simple").verify(slh_msg,slh_sig,slh_pk):
       slh_sig_impl = "SPHINCS+-SHAKE-128f-simple"
+      class SLHDSASHAKE128fSignature(oqs.Signature):
+        siglen = 17088
+        # We do pure SLH-DSA, with an empty context string
+        dsctx = b'\x00\x00'
+        def __init__(self, secret_key=None):
+          if not (secret_key is None):
+            self.public_key = secret_key[-32:] # last 32 bytes of secret key is the public key
+          super().__init__("SPHINCS+-SHAKE-128f-simple", secret_key=secret_key)
+        def sign(self, message):
+          return super().sign(self.dsctx + message)
+        def verify(self, message, signature, public_key):
+          return super().verify(self.dsctx + message, signature, public_key)
+        def generate_keypair(self):
+          pk = super().generate_keypair()
+          self.public_key = bytes(pk)
+          return self.public_key,self.export_secret_key()
+        def export_public_key(self):
+          return bytes(self.public_key)
+        def export_secret_key(self):
+          return bytes(super().export_secret_key())
   except:
     pass
+
   if len(slh_sig_impl) > 0:
-    class SLHDSASHAKE128fSignature(oqs.Signature):
-      siglen = 17088
-      # We do pure SLH-DSA, with an empty context string
-      dsctx = b'\x00\x00'
-      def __init__(self, secret_key=None):
-        if not (secret_key is None):
-          self.public_key = secret_key[-32:] # last 32 bytes of secret key is the public key
-        super().__init__("SPHINCS+-SHAKE-128f-simple", secret_key=secret_key)
-      def sign(self, message):
-        return super().sign(self.dsctx + message)
-      def verify(self, message, signature, public_key):
-        return super().verify(self.dsctx + message, signature, public_key)
-      def generate_keypair(self):
-        pk = super().generate_keypair()
-        self.public_key = bytes(pk)
-        return self.public_key,self.export_secret_key()
-      def export_public_key(self):
-        return bytes(self.public_key)
-      def export_secret_key(self):
-        return bytes(super().export_secret_key())
-    warnings.warn("Enabling support for post quantum (SLH-DSA-SHAKE-128f) signatures.",category=RuntimeWarning)
+    warnings.warn("Enabling support for post quantum (" + slh_sig_impl + ") signatures.",category=RuntimeWarning)
 
 except ImportError:
   pass
