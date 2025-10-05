@@ -174,7 +174,8 @@ git clone --depth 1 https://github.com/open-quantum-safe/liboqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs-python.git
 cd liboqs
 git checkout 0.14.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
-# Only needed if PQ signing support is desired
+# Patch only needed if PQ signing support is desired
+#   (and not required for version 0.15.0+ if SLH_DSA_PURE_SHAKE_128F is usable)
 # kat.json may fail to patch for <0.11.0, but can be ignored (except tests will fail)
 curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-sphincs+-slhdsa.patch > liboqs-sphincs+-slhdsa.patch
 patch -p1 < liboqs-sphincs+-slhdsa.patch
@@ -187,7 +188,8 @@ ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
 git checkout 0.12.0 # can use as old as 0.7.2
-# Do not need this patch for any tagged version greater than 0.12.0
+# Patch only needed if PQ signing support is desired
+# (and do not need this patch for any tagged version greater than 0.12.0)
 curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-python-suf-cma.patch > liboqs-python-suf-cma.patch
 patch -p0 < liboqs-python-suf-cma.patch
 sudo pip3 install .
