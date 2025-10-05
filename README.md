@@ -187,6 +187,9 @@ ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
 git checkout 0.12.0 # can use as old as 0.7.2
+# Do not need this patch for any tagged version greater than 0.12.0
+curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-python-suf-cma.patch > liboqs-python-suf-cma.patch
+patch -p0 < liboqs-python-suf-cma.patch
 sudo pip3 install .
 # the below may or may not be needed, depending on raspi os version
 sudo ldconfig
