@@ -173,20 +173,20 @@ cd oqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs-python.git
 cd liboqs
-git checkout 0.11.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
+git checkout 0.14.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
 # Only needed if PQ signing support is desired
 # kat.json may fail to patch for <0.11.0, but can be ignored (except tests will fail)
 curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-sphincs+-slhdsa.patch > liboqs-sphincs+-slhdsa.patch
 patch -p1 < liboqs-sphincs+-slhdsa.patch
 mkdir build
 cd build
-# Some variables will be unused depending on liboqs version; that is OK
-cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_ENABLE_KEM_NTRUPRIME=ON -DOQS_ENABLE_KEM_ntruprime_sntrup761=ON -DOQS_ENABLE_KEM_ntruprime_ntrulpr653=OFF -DOQS_ENABLE_KEM_ntruprime_ntrulpr761=OFF -DOQS_ENABLE_KEM_ntruprime_ntrulpr857=OFF -DOQS_ENABLE_KEM_ntruprime_ntrulpr1277=OFF -DOQS_ENABLE_KEM_ntruprime_sntrup653=OFF -DOQS_ENABLE_KEM_ntruprime_sntrup857=OFF -DOQS_ENABLE_KEM_ntruprime_sntrup1277=OFF -DOQS_ENABLE_KEM_KYBER=OFF -DOQS_ENABLE_KEM_BIKE=OFF -DOQS_ENABLE_KEM_FRODOKEM=OFF -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=OFF -DOQS_ENABLE_KEM_HQC=OFF -DOQS_ENABLE_SIG_DILITHIUM=OFF -DOQS_ENABLE_SIG_FALCON=OFF -DOQS_ENABLE_SIG_SPHINCS=ON -DOQS_ENABLE_SIG_sphincs_shake_128f_simple=ON -DOQS_ENABLE_SIG_sphincs_shake_128s_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake_192f_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake_192s_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake_256f_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake_256s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_128f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_128s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_192f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_192s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_256f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha2_256s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_128f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_128s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_192f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_192s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_256f_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_256s_simple=OFF -DOQS_ENABLE_SIG_sphincs_sha256_128f_robust=OFF -DOQS_ENABLE_SIG_sphincs_sha256_128s_robust=OFF -DOQS_ENABLE_SIG_sphincs_sha256_192f_robust=OFF -DOQS_ENABLE_SIG_sphincs_sha256_192s_robust=OFF -DOQS_ENABLE_SIG_sphincs_sha256_256f_robust=OFF -DOQS_ENABLE_SIG_sphincs_sha256_256s_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_128f_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_128s_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_192f_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_192s_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_256f_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_256s_robust=OFF -DOQS_ENABLE_SIG_sphincs_haraka_128f_simple=OFF -DOQS_ENABLE_SIG_sphincs_haraka_128s_simple=OFF -DOQS_ENABLE_SIG_sphincs_haraka_192f_simple=OFF -DOQS_ENABLE_SIG_sphincs_haraka_192s_simple=OFF -DOQS_ENABLE_SIG_sphincs_haraka_256f_simple=OFF -DOQS_ENABLE_SIG_sphincs_haraka_256s_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_128f_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_128s_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_192f_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_192s_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_256f_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_256s_robust=OFF -DOQS_ENABLE_SIG_sphincs_shake256_128f_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_128s_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_192f_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_192s_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_256f_simple=OFF -DOQS_ENABLE_SIG_sphincs_shake256_256s_simple=OFF -DOQS_ENABLE_SIG_PICNIC=OFF -DOQS_ENABLE_KEM_NTRU=OFF -DOQS_ENABLE_KEM_SABER=OFF -DOQS_ENABLE_SIG_RAINBOW=OFF -DOQS_ENABLE_KEM_ML_KEM=ON -DOQS_ENABLE_KEM_ml_kem_1024=ON -DOQS_ENABLE_KEM_ml_kem_768=OFF -DOQS_ENABLE_KEM_ml_kem_512=OFF -DOQS_ENABLE_SIG_ML_DSA=OFF -DOQS_ENABLE_SIG_MAYO=OFF -DOQS_ENABLE_SIG_CROSS=OFF -DOQS_ENABLE_SIG_UOV=OFF -DOQS_ENABLE_SIG_STFL_XMSS=OFF -DOQS_ENABLE_SIG_STFL_LMS=OFF
+# Some KEMs/SIGs will be unused depending on liboqs version; that is OK
+cmake -G"Ninja" .. -DOQS_DIST_BUILD=ON -DBUILD_SHARED_LIBS=ON -DOQS_PERMIT_UNSUPPORTED_ARCHITECTURE=ON -DOQS_USE_OPENSSL=OFF -DOQS_MINIMAL_BUILD="KEM_ntruprime_sntrup761;SIG_sphincs_shake_128f_simple;KEM_ml_kem_1024;SIG_slh_dsa_pure_shake_128f"
 ninja
 ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
-git checkout 0.10.0 # can use as old as 0.7.2
+git checkout 0.12.0 # can use as old as 0.7.2
 sudo pip3 install .
 # the below may or may not be needed, depending on raspi os version
 sudo ldconfig
