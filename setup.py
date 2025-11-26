@@ -21,7 +21,7 @@ setuptools.setup(
     "kafka-python": ['kafka-python>=1.4.4'],
     "confluent-kafka": ['confluent-kafka>=2'],
     "pyspx_slhdsa": ['pyspx_slhdsa>=0.5.1'],
-    "liboqs-python": ['liboqs-python>=0.10.0'],
+    "liboqs-python": ['liboqs-python>=0.7.2'],
   },
   classifiers=[
     "Programming Language :: Python :: 3",

@@ -164,7 +164,7 @@ Use requires installing [liboqs-python](https://github.com/open-quantum-safe/lib
 
 This in turn bumps the minimum python version required to 3.7.
 
-For raspberry pis and other devices not officially supported by liqoqs, the following may help:
+For manual installation, the following may help:
 ```
 sudo apt-get install cmake ninja-build git
 sudo pip3 install pytest pytest-xdist pyyaml
@@ -173,12 +173,12 @@ cd oqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs-python.git
 cd liboqs
-git checkout 0.14.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
-# Patch only needed if PQ signing support is desired
-#   (and not required for version 0.15.0+ if SLH_DSA_PURE_SHAKE_128F is usable)
-# kat.json may fail to patch for <0.11.0, but can be ignored (except tests will fail)
-curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-sphincs+-slhdsa.patch > liboqs-sphincs+-slhdsa.patch
-patch -p1 < liboqs-sphincs+-slhdsa.patch
+git checkout 0.15.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
+## Patch only needed if PQ signing support is desired
+##   (and not required for version 0.15.0+)
+## kat.json may fail to patch for <0.11.0, but can be ignored (except tests will fail)
+#curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-sphincs+-slhdsa.patch > liboqs-sphincs+-slhdsa.patch
+#patch -p1 < liboqs-sphincs+-slhdsa.patch
 mkdir build
 cd build
 # Some KEMs/SIGs will be unused depending on liboqs version; that is OK
@@ -187,11 +187,11 @@ ninja
 ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
-git checkout 0.12.0 # can use as old as 0.7.2
-# Patch only needed if PQ signing support is desired
-# (and do not need this patch for any tagged version greater than 0.12.0)
-curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-python-suf-cma.patch > liboqs-python-suf-cma.patch
-patch -p0 < liboqs-python-suf-cma.patch
+git checkout f70842e # f70842e is post 0.12.0, pre 0.13.0. can use as old as 0.7.2
+## Patch only needed if PQ signing support is desired
+## (and do not need this patch for any version greater than 0.12.0)
+#curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-python-suf-cma.patch > liboqs-python-suf-cma.patch
+#patch -p0 < liboqs-python-suf-cma.patch
 sudo pip3 install .
 # the below may or may not be needed, depending on raspi os version
 sudo ldconfig
@@ -248,6 +248,3 @@ kafkacrypto is already in limited production use, and should be stable enough fo
 
 ## Version Compatibility
 kafkacrypto is compatible with all versions of Python 3.3+, and can utilize both [kafka-python](https://github.com/dpkp/kafka-python) and [confluent-kafka](https://github.com/confluentinc/confluent-kafka-python) backends. It will automatically use one of these if already installed (preferring the higher performance confluent-kafka one).
-
-For Python 3.12, kafka-python must be 2.0.3 or later; this dependency has not been released on PyPi, So you either need to use confluent-kafka, or install kafka-python directly from their github.
-
