@@ -6,7 +6,7 @@ except ImportError:
   # kafka-python compatible implementation of Future
   #
   class Future(object):
-    done = False
+    is_done = False
     value = None
     exception = None
     exceptions_on_callbacks = False
@@ -23,32 +23,32 @@ except ImportError:
         return False
 
     def success(self, val):
-      assert not self.done, 'Future already completed'
+      assert not self.is_done, 'Future already completed'
       self.value = val
-      self.done = True
+      self.is_done = True
       if self.callbacks:
         self.call_backs('callback', self.callbacks, self.value)
       return self
 
     def succeeded(self):
-      return self.done and not bool(self.exception)
+      return self.is_done and not bool(self.exception)
 
     def failure(self, e):
-      assert not self.done, 'Future already completed'
+      assert not self.is_done, 'Future already completed'
       self.exception = e if type(e) is not type else e()
       assert isinstance(self.exception, BaseException), 'Future failed with no exception'
-      self.done = True
+      self.is_done = True
       self.call_backs('errorback', self.errorbacks, self.exception)
       return self
 
     def failed(self):
-      return self.done and bool(self.exception)
+      return self.is_done and bool(self.exception)
 
     def add_callback(self, f, *args, **kwargs):
       if args or kwargs:
         f = functools.partial(f, *args, **kwargs)
       # Execute immediately if done (without error), otherwise queue for when completed
-      if self.done and not self.exception:
+      if self.is_done and not self.exception:
         self.call_backs('callback', [f], self.value)
       else:
         self.callbacks.append(f)
@@ -58,7 +58,7 @@ except ImportError:
       if args or kwargs:
         f = functools.partial(f, *args, **kwargs)
       # Execute immediately if done (with error), otherwise queue for later
-      if self.done and self.exception:
+      if self.is_done and self.exception:
         self.call_backs('errorback', [f], self.exception)
       else:
         self.errorbacks.append(f)
