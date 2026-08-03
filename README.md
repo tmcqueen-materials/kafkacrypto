@@ -166,13 +166,15 @@ This in turn bumps the minimum python version required to 3.7.
 
 For manual installation, the following may help:
 ```
-sudo apt-get install cmake ninja-build git
+# valgrind only needed for full tests
+sudo apt-get install cmake ninja-build git valgrind
 sudo pip3 install pytest pytest-xdist pyyaml
 mkdir oqs
 cd oqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs
 git clone --depth 1 https://github.com/open-quantum-safe/liboqs-python.git
 cd liboqs
+git pull --tags # might need, depending on version of git in use
 git checkout 0.15.0 # can use as old as 0.8.0 for full support, or 0.7.2 for ephemeral PQ key exchange (but not signing)
 ## Patch only needed if PQ signing support is desired
 ##   (and not required for version 0.15.0+)
@@ -187,13 +189,15 @@ ninja
 ninja run_tests
 sudo ninja install
 cd ../../liboqs-python
+git pull --tags # might need, depending on version of git in use
 git checkout f70842e # f70842e is post 0.12.0, pre 0.13.0. can use as old as 0.7.2
 ## Patch only needed if PQ signing support is desired
-## (and do not need this patch for any version greater than 0.12.0)
+## (and do not need this patch for any version greater than or equal to f70842e)
 #curl https://raw.githubusercontent.com/tmcqueen-materials/kafkacrypto/refs/heads/master/liboqs-python-suf-cma.patch > liboqs-python-suf-cma.patch
 #patch -p0 < liboqs-python-suf-cma.patch
+# can add --break-system-packages if installing systemwide by intent
 sudo pip3 install .
-# the below may or may not be needed, depending on raspi os version
+# the below may or may not be needed, depending on os version
 sudo ldconfig
 ```
 
