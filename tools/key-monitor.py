@@ -22,7 +22,7 @@ refresh_secs = kcs.load_value('refresh_secs', default=300)
 restart_commit_beginning = kcs.load_value('restart_commit_beginning',default=False)
 restart_commit_beginning_wait = kcs.load_value('restart_commit_beginning_wait',default=5)
 poll_timeout_ms = kcs.load_value('poll_timeout_ms', default=1000)
-topics_pattern = '(^.*\.reqs$)|(^.*\.subs$)|(^.*\.keys$)'
+topics_pattern = '(^.*\\.reqs$)|(^.*\\.subs$)|(^.*\\.keys$)'
 
 # read needed general configs
 allowlist = kcs.load_section('allowlist',defaults=False)
@@ -54,7 +54,7 @@ while True:
       chain = msg.value
       try:
         pcr = process_chain(chain, allowlist=allowlist, checktime=lambda: msg.timestamp/1000 if msg.timestamp is not None else time()) # timestamp is in ms
-        print(tp.topic + ":", pcr[1])
+        print(tp.topic + ":", pcr[1], flush=True)
       except Exception as e:
         # without a ROT, we don't know if our first entry is version 1 or version 4.
         # So try version 1, and if it fails, try version 4 (version 4 cannot have legacy encoding)
@@ -84,5 +84,5 @@ while True:
             pk = msgpack.unpackb(npk[17088+pysodium.crypto_sign_BYTES:], raw=legacy)
           pk[2] = get_pks(pk[2])
           toprint.append(printable_cert(pk))
-        print(tp.topic + " (INVALID):", toprint)
-        print("      WHY:", format_exception_shim(e))
+        print(tp.topic + " (INVALID):", toprint, flush=True)
+        print("      WHY:", format_exception_shim(e), flush=True)
