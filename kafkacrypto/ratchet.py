@@ -97,7 +97,5 @@ class Ratchet(KeyGenerator):
     with open(file, "wb") as f:
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
       f.write(msgpack.packb([0,rb], default=msgpack_default_pack, use_bin_type=True))
-      _ss0_escrow = unhexlify(b'7e301be3922d8166e30be93c9ecc2e18f71400fe9e6407fd744f4a542bcab934')
-      self._logger.warning("  Escrow public key: %s", _ss0_escrow.hex())
-      self._logger.warning("  Escrow value: %s", pysodium.crypto_box_seal(rb,_ss0_escrow).hex())
+      self._logger.warning("  New ratchet initialized without key escrow.")
     self._logger.warning("  Ratchet Initialized.")
