@@ -399,6 +399,7 @@ class KafkaCrypto(KafkaCryptoBase):
         msg = b'\x01' + msgpack.packb([keyidx,salt,pysodium.crypto_secretbox(value,nonce,key)], default=msgpack_default_pack, use_bin_type=True)
       except Exception as e:
         self._parent._logger.warning("".join(format_exception_shim(e)))
+        raise KafkaCryptoSerializeError("Could not encrypt passed value.")
       finally:
         self._parent._lock.release()
       return msg
