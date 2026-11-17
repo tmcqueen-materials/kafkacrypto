@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Potential security issues can be reported to <securty@kafkacrypto.org>. Encryption is not required, but if you want to encrypt the email you can use the following PGP key.
+Potential security issues can be reported to <security@kafkacrypto.org>. Encryption is not required, but if you want to encrypt the email you can use the following PGP key.
 ```
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
