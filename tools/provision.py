@@ -158,6 +158,7 @@ else:
 
 print('Root topics will be:')
 print(topics)
+print(' [Topics are matched as exact literals unless beginning with ^, in which case they are treated as regular expressions (regex). When using regexs, be sure to append a $ at the end if prefix-only matching is not intended.]')
 print('Lifetime of initial crypto configuration will be', _lifetime/86400, 'days.')
 if pathlen!=-1:
   print('Maximum pathlength is', pathlen)

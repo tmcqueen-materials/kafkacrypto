@@ -71,6 +71,7 @@ if len(lt)>0:
 
 print('Root topics will be:')
 print(topics)
+print(' [Topics are matched as exact literals unless beginning with ^, in which case they are treated as regular expressions (regex). When using regexs, be sure to append a $ at the end if prefix-only matching is not intended.]')
 if lifetime!=-1:
   print('Lifetime of initial crypto configuration will be', lifetime/86400, 'days.')
 else:
