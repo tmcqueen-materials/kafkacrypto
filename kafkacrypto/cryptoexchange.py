@@ -115,14 +115,6 @@ class CryptoExchange(object):
         # and finally put as last member of a msgpacked array chaining to ROT
         with self.__spk_chains_lock:
           tchain = self.__spk_chains[idx].copy()
-          if (len(tchain) == 0):
-            # TODO: right now this uses a temporary Ed25519 key even for other key versions. This should be adjusted accordingly.
-            poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
-            lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk(idx)], default=msgpack_default_pack, use_bin_type=True)
-            _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
-            tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-            provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk(idx)], default=msgpack_default_pack),self.__cryptokey.sign_spk(lastcert,idx)], default=msgpack_default_pack, use_bin_type=True)
-            self._logger.warning("Current signing chain for idx=%i is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", idx, provision.hex())
         tchain.append(msg)
         msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
         rv.append(msg)
