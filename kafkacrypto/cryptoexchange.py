@@ -115,6 +115,8 @@ class CryptoExchange(object):
         # and finally put as last member of a msgpacked array chaining to ROT
         with self.__spk_chains_lock:
           tchain = self.__spk_chains[idx].copy()
+          if (len(tchain) == 0):
+            self._logger.warning("Current signing chain is empty. You must provision access for this node for use.")
         tchain.append(msg)
         msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
         rv.append(msg)
@@ -211,15 +213,7 @@ class CryptoExchange(object):
           with self.__spk_chains_lock:
             tchain = self.__spk_chains[idx].copy()
             if (len(tchain) == 0):
-              # TODO: right now this uses a temporary Ed25519 key even for other key versions. This should be adjusted accordingly.
-              # Use default for direct use when empty.
-              self.__spk_direct_requests[idx] = True
-              poison = msgpack.packb([['topics',[topic]],['usages',['key-encrypt-request','key-encrypt-subscribe']],['pathlen',1]], default=msgpack_default_pack, use_bin_type=True)
-              lastcert = msgpack.packb([time()+self.__maxage,poison,self.__cryptokey.get_spk(idx)], default=msgpack_default_pack, use_bin_type=True)
-              _,tempsk = pysodium.crypto_sign_seed_keypair(unhexlify(b'4c194f7de97c67626cc43fbdaf93dffbc4735352b37370072697d44254e1bc6c'))
-              tchain.append(pysodium.crypto_sign(lastcert,tempsk))
-              provision = msgpack.packb([msgpack.packb([0,b'\x90',self.__cryptokey.get_spk(idx)],default=msgpack_default_pack),self.__cryptokey.sign_spk(lastcert,idx)], default=msgpack_default_pack, use_bin_type=True)
-              self._logger.warning("Current signing chain is empty. Use %s to provision access and then remove temporary root of trust from allowedlist.", provision.hex())
+              self._logger.warning("Current signing chain is empty. You must provision access for this node for use.")
           tchain.append(msg)
           msg = msgpack.packb(tchain, default=msgpack_default_pack, use_bin_type=True)
           rv.append([msg,self.__direct_request_spk_chain(idx)])
