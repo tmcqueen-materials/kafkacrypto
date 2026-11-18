@@ -95,7 +95,7 @@ class KafkaCryptoChainServer(object):
     # allowlist entries are msgpack encoded single certificates (with public key in index 2)
     self._allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (self._allowlist is None):
-      self._allowlist = self._allowlist.values()
+      self._allowlist = list(self._allowlist.values())
 
     # Attempt legacy chain load
     chain = self._cryptostore.load_value('chain',section='crypto')

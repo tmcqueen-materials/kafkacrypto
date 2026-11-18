@@ -136,10 +136,10 @@ class KafkaCryptoBase(object):
 
     allowlist = self._cryptostore.load_section('allowlist',defaults=False)
     if not (allowlist is None):
-      allowlist = allowlist.values()
+      allowlist = list(allowlist.values())
     denylist = self._cryptostore.load_section('denylist',defaults=False)
     if not (denylist is None):
-      denylist = denylist.values()
+      denylist = list(denylist.values())
 
     # Attempt legacy chain load
     chain = self._cryptostore.load_value('chain',section='crypto')
@@ -148,7 +148,7 @@ class KafkaCryptoBase(object):
       self._cryptostore.store_value('chain',None,section='crypto')
     chains = self._cryptostore.load_section('chains',defaults=False)
     if not (chains is None):
-      chains = chains.values()
+      chains = list(chains.values())
     self._cryptoexchange = CryptoExchange(chains,self._cryptokey,
                            maxage=self._cryptostore.load_value('maxage',section='crypto'),allowlist=allowlist,denylist=denylist)
 

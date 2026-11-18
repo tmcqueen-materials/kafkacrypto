@@ -68,11 +68,11 @@ class KafkaCryptoController(KafkaCryptoBase):
       # allowlist entries are msgpack encoded single certificates (with public key in index 2)
       allowlist = self._cryptostore.load_section('allowlist',defaults=False)
       if not (allowlist is None):
-        allowlist = allowlist.values()
+        allowlist = list(allowlist.values())
       denylist = self._cryptostore.load_section('denylist',defaults=False)
       # denylist entries are msgpack encoded single certificates (with public key in index 2)
       if not (denylist is None):
-        denylist = denylist.values()
+        denylist = list(denylist.values())
       provisioners = Provisioners(allowlist=allowlist, denylist=denylist)
     if (not hasattr(provisioners, 'reencrypt_request') or not inspect.isroutine(provisioners.reencrypt_request)):
       raise KafkaCryptoControllerError("Invalid provisioners source supplied!")
