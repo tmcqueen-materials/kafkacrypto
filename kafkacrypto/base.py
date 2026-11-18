@@ -63,6 +63,7 @@ class KafkaCryptoBase(object):
                'MGMT_POLL_RECORDS': 8,         # poll fetches by topic-partition. So limit number per call to sample all tps
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
                'MGMT_LONG_KEYINDEX': True,
+               'MGMT_KEYINDEX_MAX_LEN': 32,    # in bytes; long keyindices are 32 bytes, short ones shorter
                'DESER_INITIAL_WAIT_INTERVALS': 10,
              }
 
