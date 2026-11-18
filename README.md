@@ -248,7 +248,22 @@ chainserver._mgmt_thread.join()
 The sample provision script can appropriately setup keys for the ChainServer as well.
 
 ## Design, Specification, and Security Analysis
-kafkacrypto is already in limited production use, and should be stable enough for broad adoption. However, a detailed security analysis of the kafkacrypto framework is still in progress, and use of this code should be considered experimental.
+kafkacrypto is in roduction use, and should be stable enough for broad adoption. There have been two detailed security analysis of the kafkacrypto framework,
+one manually and one with LLM/AI assistance. Four design decisions that are intentional, but require appropriate action during use to avoid weaknesses:
+
+1. The ratcheting key generator is deterministic from a given starting file-backed seed. This means two instances started from the same
+   `.seed` file will use the same key and nonce, which leads to a loss of confidentiality if two different producers start from the same `.seed` file.
+   The recommended avoidance strategy is to use a hardware-backed ratchet.
+2. Headers are not encrypted, and keys and values are treated separately, with no strong binding between keys, values, headers, and/or message number. This allows
+   for `replay substitutions` (e.g. using key ciphertext from one message with value ciphertext from another). If binding between keys/values/headers are needed,
+   that needs to be done manually (e.g. including the hash of the key in the value and vice versa).
+3. Any authorized responder can provide keys for key indices belonging to any other authorized responder. This is by design to accommodate the full flexibility
+   that Kafka itself allows (specifically that, for a given topic, all producers can be "seamlessly interchanged").
+4. Any key with "key-allowlist" permission can add any keys for any scope to allowlists. This is by design to accommodate the full flexibility
+   that Kafka itself allows.
+
+It is possible that a new wire format will be added with the next major version that includes (public) per-message randomness in the key derivation, encryption of
+headers, and strong binding of headers/keys/values and message sequence, but those come with limitations on the structure of possible Kafka usage scenarios.
 
 ## Version Compatibility
 kafkacrypto is compatible with all versions of Python 3.3+, and can utilize both [kafka-python](https://github.com/dpkp/kafka-python) and [confluent-kafka](https://github.com/confluentinc/confluent-kafka-python) backends. It will automatically use one of these if already installed (preferring the higher performance confluent-kafka one).
