@@ -5,7 +5,6 @@ import pysodium
 import msgpack
 import logging
 from os import path
-from binascii import unhexlify
 
 class Ratchet(KeyGenerator):
   """Class utilizing file-backed storage to provide a ratcheting key generator.

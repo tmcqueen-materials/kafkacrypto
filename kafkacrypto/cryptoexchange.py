@@ -5,7 +5,6 @@ import pysodium
 import msgpack
 import logging
 from kafkacrypto.chain import process_chain, ProcessChainError, key_in_list
-from binascii import unhexlify
 from kafkacrypto.keys import get_pks
 
 class CryptoExchange(object):
