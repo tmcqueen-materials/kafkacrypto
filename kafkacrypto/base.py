@@ -64,6 +64,7 @@ class KafkaCryptoBase(object):
                'MGMT_SUBSCRIBE_INTERVAL': 300, # in sec
                'MGMT_LONG_KEYINDEX': True,
                'MGMT_KEYINDEX_MAX_LEN': 32,    # in bytes; long keyindices are 32 bytes, short ones shorter
+               'MGMT_KEYINDEX_WAIT_MAX_SECS': 86400, # in s
                'DESER_INITIAL_WAIT_INTERVALS': 10,
              }
 

@@ -72,10 +72,11 @@ class KafkaCrypto(KafkaCryptoBase):
   #       _pgens: dict of production encryption key generators, indexed by root
   #               topic, then by 'keyidx', and 'key'/'value'/'secret'.
   #   _new_pgens: Set to true when new pgens were added
-  #      _cwaits: dict of statuses on waiting for different key indices indexed by 
+  #      _cwaits: dict of statuses on waiting for different key indices indexed by
   #               root topic and then key index. Used to implement the
   #               wait once logic to ensure no undecryptable messages at
-  #               transient key change events.
+  #               transient key change events, and the periodic pruning.
+  #               Final bit is a 2-element array [wait intervals, creation time].
   #       _cgens: dict of consumption encryption key generators, indexed by root
   #               topic. Each topic has a list of available generators, indexed
   #               by 'keyidx', and finally 'key'/'value'/'secret'.
@@ -289,6 +290,9 @@ class KafkaCrypto(KafkaCryptoBase):
       for root in self._subs_needed:
         if root in self._cwaits.keys():
           self._logger.debug("Attempting (Re)subscribe to root=%s", root)
+          # periodically prune key indices we are waiting on, dropping those never received
+          curtime = time()
+          self._cwaits[root] = { k: v for k, v in self._cwaits[root].items() if v[1]+self.MGMT_KEYINDEX_WAIT_MAX_SECS>=curtime }
           kis = list(self._cwaits[root].keys())
           if len(kis) > 0:
             if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
@@ -448,11 +452,11 @@ class KafkaCrypto(KafkaCryptoBase):
             i = self._parent.DESER_INITIAL_WAIT_INTERVALS
             if not (root in self._parent._cwaits.keys()):
               self._parent._cwaits[root] = {}
-            self._parent._cwaits[root][ki] = i
+            self._parent._cwaits[root][ki] = [i, time()]
           elif initial_waiter:
-            self._parent._cwaits[root][ki] -= 1
+            self._parent._cwaits[root][ki][0] -= 1
           elif (root in self._parent._cwaits.keys()) and (ki in self._parent._cwaits[root].keys()):
-            i = self._parent._cwaits[root][ki]
+            i = self._parent._cwaits[root][ki][0]
           else:
             i = self.MAX_WAIT_INTERVALS
        	  ntp =	(root+self._parent.TOPIC_SUFFIX_KEYS)
