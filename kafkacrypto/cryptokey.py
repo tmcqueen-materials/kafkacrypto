@@ -31,6 +31,11 @@ class CryptoKey(object):
   #                 new key requests in legacy format (replies to legacy format
   #                 requests are not affected by this setting)
   #  __ephk_ver: ephemeral key exchange key type (KEMPublic/SecretKey version(s))
+  # Behavior controlling settings:
+  #  __ephk_preferred_vers: Ordered list of KEMPublicKey versions; for any given
+  #                         exchange, only the earliest entry in this list with
+  #                         a match will be used. If set to None, restores legacy
+  #                         behavior.
   # Generated ephemerially, on demand:
   #       __esk: dict of encrypting private (secret) keys (by topic and usage and version)
   #
@@ -47,6 +52,7 @@ class CryptoKey(object):
       data = file.read()
     datalen = len(data)
     self.__load_update_cryptokey(data, datalen, file, isinstance(file, (str)), keytypes)
+    self.__ephk_preferred_vers = [5,2,1] # prefer hybrids by default
 
   def __load_update_cryptokey(self, data, datalen, file, isfile, keytypes):
     # this could be legacy
@@ -190,8 +196,13 @@ class CryptoKey(object):
       return rv
 
   def use_epks(self, topic, usage, pks, clear=True):
+    # If __ephk_preferred_vers is set, instead of returning all KEM shared secrets,
+    # only return the one matching the earliest entry in preferred_vers;
+    # for example, if both 5 and 2 give results, only return 5.
+    pv = self.__ephk_preferred_vers
     rv = []
     rvp = []
+    ver_idx = None
     if (isinstance(topic,(bytes,bytearray))):
       self._logger.debug("passed a topic in bytes (should be string)")
       topic = topic.decode('utf-8')
@@ -204,8 +215,14 @@ class CryptoKey(object):
       for pk in pks:
         kpk = KEMPublicKey(pk)
         if kpk.get_esk_version() in self.__esk[topic][usage]:
-          rv.append(self.__esk[topic][usage][kpk.get_esk_version()].complete_kem(kpk))
-          rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.get_esk_version()]))
+          if (pv is None) or (ver_idx is None) or (kpk.get_esk_version() in pv and pv.index(kpk.get_esk_version())<ver_idx):
+            if not (pv is None) and kpk.get_esk_version() in pv:
+              ver_idx = pv.index(kpk.get_esk_version())
+              # remove any previous entries since this one is better
+              rv = []
+              rvp = []
+            rv.append(self.__esk[topic][usage][kpk.get_esk_version()].complete_kem(kpk))
+            rvp.append(KEMPublicKey(self.__esk[topic][usage][kpk.get_esk_version()]))
       if clear:
         self.__remove_esk(topic, usage)
     return (rv,rvp)
@@ -219,6 +236,9 @@ class CryptoKey(object):
       return pysodium.crypto_secretbox_open(crypto_opaque[pysodium.crypto_secretbox_NONCEBYTES:],crypto_opaque[0:pysodium.crypto_secretbox_NONCEBYTES], self.__ek)
     except:
       return None
+
+  def set_ephk_preferred_vers(self, vers):
+    self.__ephk_preferred_vers = vers
 
   def __generate_esk(self, topic, usage):
     # ephemeral keys are use once only, so always ok to overwrite
