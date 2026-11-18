@@ -66,6 +66,8 @@ for msg in consumer:
 ```
 The convenience method `.getMessage()` can be used instead to return the message as bytes if successfully decrypted, or to raise a `KafkaCryptoMessageError` if decryption failed.
 
+To avoid being bounced out of a group due to waiting on new decryption keys for undecryptable messages, it is recommended to set `max.poll.records` to at most `max.poll.interval.ms / (DESER_INITIAL_WAIT_INTERVALS * key_wait_interval), which is ~30 with default values.
+
 ## Stacking (De)Serializers
 Although not recommended, it is possible to combine multiple (De)Serializers in a single chain to, e.g., encrypt/decrypt and JSON encode/decode a message. Such an example is here:
 ```python
