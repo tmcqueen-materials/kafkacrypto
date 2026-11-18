@@ -176,6 +176,8 @@ class CryptoStore(object):
     self.store_value('test','test')
     self.store_value('test',None)
     self.store_value('MGMT_LONG_KEYINDEX',True)
+    self.store_value('test','test',section='allowlist')
+    self.store_value('test',None,section='allowlist')
     self.store_value('test','test',section='denylist')
     self.store_value('test',None,section='denylist')
     self.store_value('test','test',section='crypto')
