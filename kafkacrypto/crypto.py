@@ -79,7 +79,7 @@ class KafkaCrypto(KafkaCryptoBase):
   #               Final bit is a 2-element array [wait intervals, creation time].
   #       _cgens: dict of consumption encryption key generators, indexed by root
   #               topic. Each topic has a list of available generators, indexed
-  #               by 'keyidx', and finally 'key'/'value'/'secret'.
+  #               by 'keyidx', and finally 'key'/'value'/'secret'/'birth'.
   #
 
   def __init__(self, nodeID, kp, kc, config=None, cryptokey=None, seed=None):
@@ -220,6 +220,7 @@ class KafkaCrypto(KafkaCryptoBase):
                 self._cgens[root][nki] = {}
                 self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
                 self._cgens[root][nki]['secret'] = nk
+                self._cgens[root][nki]['birth'] = time()
                 # now that we have this key index, clear from request lists
                 if root in self._cwaits.keys():
                   self._cwaits[root].pop(nki, None)
@@ -287,6 +288,13 @@ class KafkaCrypto(KafkaCryptoBase):
       self._lock.acquire()
       self._logger.debug("Process subscriptions.")
       subs_needed_next = []
+
+      # periodically prune key indices that are past age expiry
+      curtime = time()
+      for root in self._cgens:
+        self._cgens[root] = { k: v for k, v in self._cgens[root].items() if v['birth']+self.CRYPTO_MAX_CGEN_AGE>=curtime }
+
+      # Get subscriptions
       for root in self._subs_needed:
         if root in self._cwaits.keys():
           self._logger.debug("Attempting (Re)subscribe to root=%s", root)

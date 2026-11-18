@@ -52,6 +52,7 @@ class KafkaCryptoBase(object):
                'TOPIC_SUFFIX_SUBS': '.subs',  # suffixes should begin with separator or things will not work!
                'TOPIC_SUFFIX_KEYS': '.keys',
                'TOPIC_SUFFIX_REQS': '.reqs',
+               'CRYPTO_MAX_CGEN_AGE': 86401,  # in s
                'CRYPTO_MAX_PGEN_AGE': 604800,  # in s
                'CRYPTO_SUB_INTERVAL': 60,      # in s
                'CRYPTO_RATCHET_INTERVAL': 86400,  # in s
