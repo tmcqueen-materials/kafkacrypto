@@ -436,13 +436,25 @@ class KafkaCrypto(KafkaCryptoBase):
       ki = msg[0]
       salt = msg[1]
       msg = msg[2]
-      if len(ki) > self._parent.MGMT_KEYINDEX_MAX_LEN or len(ki) < 1:
-        # key index must be at least length long and no greater than configured.
-        self._parent._logger.debug("key index length out of bounds=%s (max %s).", str(len(ki)), str(self._parent.MGMT_KEYINDEX_MAX_LEN))
-        return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
-      if len(salt) < 1:
-        # salt must have a non-zero length
-        self._parent._logger.debug("salt length out of bounds=%s.", str(len(salt)))
+      try:
+        if isinstance(ki,int):
+          # special handling as bit_length() of 0 is 0 (ick)
+          if ki == 0:
+            kilen = 1
+          else:
+            kilen = ((ki.bit_length() + 7) // 8)
+        else:
+          kilen = len(ki)
+        if kilen > self._parent.MGMT_KEYINDEX_MAX_LEN or kilen < 1:
+          # key index must have a non-zero length and no greater than configured. Can be int or bytes
+          self._parent._logger.debug("key index length out of bounds=%s (max %s).", str(len(ki)), str(self._parent.MGMT_KEYINDEX_MAX_LEN))
+          return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
+        if len(salt) < 1:
+          # salt must have a non-zero length (and always a bytes, so len() is valid)
+          self._parent._logger.debug("salt length out of bounds=%s.", str(len(salt)))
+          return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
+      except:
+        # errors here mean the requisite key will never be available
         return KafkaCryptoMessage.fromEncryptedBytes(bytes_,deser=self,topic=topic,decryptable=False)
       self._parent._lock.acquire()
       i = 1
