@@ -303,8 +303,10 @@ class CryptoExchange(object):
       min_max_age = 0
       with self.__spk_chains_lock:
         for cpk in self.__spk_chains[idx]:
-          if (min_max_age == 0 or cpk[0]<min_max_age):
-            min_max_age = cpk[0]
+          with self.__allowdenylist_lock:
+            npk,_,_ = process_chain(msgpack.packb(cpk,raw=True),None,None,allowlist=self.__allowlist,denylist=self.__denylist)
+          if (min_max_age == 0 or npk[0]<min_max_age):
+            min_max_age = npk[0]
       if (pk[0] < min_max_age):
         raise ProcessChainError("New chain for idx="+str(idx)+" has shorter expiry time than current chain.", pkprint)
       with self.__spk_chains_lock:
