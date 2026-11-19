@@ -544,27 +544,32 @@ class KafkaCrypto(KafkaCryptoBase):
     if isinstance(root,(bytes,bytearray)):
       self._logger.debug("passed a root in bytes (should be string)")
       root = root.decode('utf-8')
-    if (self.MGMT_LONG_KEYINDEX == True):
-      ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_id_spk())
-    else:
-      ki,ks,kg,vg = self._seed.get_key_value_generators(root)
-    self._cur_pgens[root] = ki
-    if not (root in self._pgens):
-      self._pgens[root] = {}
-    if ki in self._pgens[root] and (not ('key' in self._pgens[root][ki].keys()) or not ('value' in self._pgens[root][ki].keys())):
-      self._logger.critical("Potential key reuse scenario detected! Incrementing ratchet for safety.")
-      self._seed.increment()
-    elif not (ki in self._pgens[root].keys()):
-      self._new_pgens = True
-      self._pgens[root][ki] = {}
-      self._pgens[root][ki]['key'] = kg
-      self._pgens[root][ki]['value'] = vg
-      self._pgens[root][ki]['secret'] = ks
-      self._pgens[root][ki]['birth'] = time()
-      ntp = (root+self.TOPIC_SUFFIX_REQS)
-      if not (ntp in self._tps):
-        self._tps[ntp] = TopicPartition(ntp,0)
-        self._tps_offsets[ntp] = 0
-        self._tps_updated = True
-      self._logger.info("Got new producer key for root=%s. New key index=%s", root, ki)
+    gotprodkey = False
+    while not gotprodkey:
+      if (self.MGMT_LONG_KEYINDEX == True):
+        ki,ks,kg,vg = self._seed.get_key_value_generators(root, node=self._cryptokey.get_id_spk())
+      else:
+        ki,ks,kg,vg = self._seed.get_key_value_generators(root)
+      self._cur_pgens[root] = ki
+      if not (root in self._pgens):
+        self._pgens[root] = {}
+      if ki in self._pgens[root] and (not ('key' in self._pgens[root][ki].keys()) or not ('value' in self._pgens[root][ki].keys())):
+        self._logger.critical("Potential key reuse scenario detected! Incrementing ratchet for safety.")
+        self._seed.increment()
+      elif not (ki in self._pgens[root].keys()):
+        self._new_pgens = True
+        self._pgens[root][ki] = {}
+        self._pgens[root][ki]['key'] = kg
+        self._pgens[root][ki]['value'] = vg
+        self._pgens[root][ki]['secret'] = ks
+        self._pgens[root][ki]['birth'] = time()
+        ntp = (root+self.TOPIC_SUFFIX_REQS)
+        if not (ntp in self._tps):
+          self._tps[ntp] = TopicPartition(ntp,0)
+          self._tps_offsets[ntp] = 0
+          self._tps_updated = True
+        gotprodkey = True
+      else:
+        gotprodkey = True
+    self._logger.info("Got new producer key for root=%s. New key index=%s", root, ki)
 
