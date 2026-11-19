@@ -2,7 +2,7 @@ from threading import Lock
 import pysodium
 import logging
 import msgpack
-from os import path, chmod
+from os import path, open as os_open
 from kafkacrypto.utils import msgpack_default_pack
 from kafkacrypto.keys import SignPublicKey, SignSecretKey, KEMPublicKey, KEMSecretKey
 
@@ -256,7 +256,6 @@ class CryptoKey(object):
 
   def __init_empty_cryptokey(self, file):
     self._logger.warning("Initializing new CryptoKey file %s", file)
-    with open(file, "wb") as f:
+    with open(file, "xb", opener = lambda f, fl: os_open(f, fl, 0o600)) as f:
       f.write(msgpack.packb([2,[],pysodium.randombytes(pysodium.crypto_secretbox_KEYBYTES),False,[5,2,1]], default=msgpack_default_pack, use_bin_type=True))
-    chmod(file, 0o600)
     self._logger.warning("  CryptoKey Initialized.")

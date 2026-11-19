@@ -2,7 +2,7 @@
 # TODO: Adjust to fully support multiple signing chains
 from pysodium import randombytes
 import msgpack
-from os import path
+from os import path, open as os_open
 from time import time
 from getpass import getpass
 from binascii import unhexlify, hexlify
@@ -170,14 +170,14 @@ assert (ans[0].lower() == 'y'), 'Aborting per user request.'
 
 # Generate KDF seed first, if needed
 if path.exists(nodeID + ".seed"):
-  with open(nodeID + ".seed", "rb+") as f:
+  with open(nodeID + ".seed", "rb+", opener = lambda f, fl: os_open(f, fl, 0o600)) as f:
     seedidx,rb = msgpack.unpackb(f.read(),raw=True)
     f.seek(0,0)
     f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
     f.flush()
     f.truncate()
 else:
-  with open(nodeID + ".seed", "wb") as f:
+  with open(nodeID + ".seed", "xb", opener = lambda f, fl: os_open(f, fl, 0o600)) as f:
     seedidx = 0
     rb = randombytes(Ratchet.SECRETSIZE)
     f.write(msgpack.packb([seedidx,rb], use_bin_type=True))
