@@ -71,9 +71,17 @@ def multimatch(wanted, choices):
     if len(wanted)<1 or str_shim_ne(wanted[0:1],'^'):
       # wanted is a literal
       if len(c) > 0 and str_shim_eq(c[0:1],'^'):
-        r = re.compile(c)
-        if r.match(wanted)!=None:
-          return True
+        # Do the same song and dance as str_shim_, converting to str from bytes if needed
+        if isinstance(c,(bytes,bytearray)):
+          r = re.compile(c.decode('utf-8'))
+        else:
+          r = re.compile(c)
+        if isinstance(wanted,(bytes,bytearray)):
+          if r.match(wanted.decode('utf-8'))!=None:
+            return True
+        else:
+          if r.match(wanted)!=None:
+            return True
       elif str_shim_eq(wanted,c):
         return True
     else:
