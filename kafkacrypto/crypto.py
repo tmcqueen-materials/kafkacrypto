@@ -1,4 +1,5 @@
-from threading import Thread
+import threading
+from os import _exit as os_exit
 import inspect
 from kafkacrypto.utils import format_exception_shim
 import pysodium
@@ -13,6 +14,12 @@ from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.keygenerator import KeyGenerator
 from kafkacrypto.utils import log_limited, msgpack_default_pack
+
+def mgmt_deadhandler_excepthook(args):
+  if (not (args.thread is None) and args.thread.name == "kafkacrypto-mgmt-thread"):
+    print("Management thread died:", args.exc_value, ". Exiting.")
+    os._exit(1)
+threading.excepthook = mgmt_deadhandler_excepthook
 
 class KafkaCrypto(KafkaCryptoBase):
   """Class handling the sending and receiving of encrypted messages.
@@ -141,7 +148,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # (but secret stays around so lost consumers can catch up)
 
     self._mgmt_thread_stop = False
-    self._mgmt_thread = Thread(target=self._process_mgmt_messages,daemon=True)
+    self._mgmt_thread = threading.Thread(target=self._process_mgmt_messages,name="kafkacrypto-mgmt-thread",daemon=True)
     self._mgmt_thread.start()
 
   def close(self):
