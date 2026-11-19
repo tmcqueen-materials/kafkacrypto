@@ -4,7 +4,7 @@ from kafkacrypto.utils import msgpack_default_pack
 import pysodium
 import msgpack
 import logging
-from os import path
+from os import path, chmod
 
 class Ratchet(KeyGenerator):
   """Class utilizing file-backed storage to provide a ratcheting key generator.
@@ -97,4 +97,5 @@ class Ratchet(KeyGenerator):
       rb = pysodium.randombytes(Ratchet.SECRETSIZE)
       f.write(msgpack.packb([0,rb], default=msgpack_default_pack, use_bin_type=True))
       self._logger.warning("  New ratchet initialized without key escrow.")
+    chmod(file, 0o600)
     self._logger.warning("  Ratchet Initialized.")
