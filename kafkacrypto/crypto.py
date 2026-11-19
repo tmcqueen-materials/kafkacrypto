@@ -15,10 +15,12 @@ from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.keygenerator import KeyGenerator
 from kafkacrypto.utils import log_limited, msgpack_default_pack
 
+_prev_excepthook = threading.excepthook
 def mgmt_deadhandler_excepthook(args):
   if (not (args.thread is None) and args.thread.name == "kafkacrypto-mgmt-thread"):
     print("Management thread died:", args.exc_value, ". Exiting.")
-    os._exit(1)
+    os_exit(1)
+  _prev_excepthook(args)
 threading.excepthook = mgmt_deadhandler_excepthook
 
 class KafkaCrypto(KafkaCryptoBase):
