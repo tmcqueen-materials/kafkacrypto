@@ -239,6 +239,9 @@ class KafkaCrypto(KafkaCryptoBase):
                   except Exception as e:
                     self._cgens[root][nki] = oldnki
                     self._logger.warning("".join(format_exception_shim(e)))
+                  if len(self._cgens[root][nki]) < 3:
+                    # cleanup incomplete entry
+                    self._cgens[root].pop(nki)
                 if root in self._subs_last:
                   eki = set(self._subs_last[root][1])
                   eki.difference_update(set(nks.keys()))
