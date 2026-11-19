@@ -388,7 +388,8 @@ class KafkaCrypto(KafkaCryptoBase):
           self._lock.release()
 
         # Finally, loop back to poll again
-      except:
+      except BaseException as e:
+        self._logger.critical("Management thread died, exiting:\n%s", "".join(format_exception_shim(e)))
         os_exit(1)
   # end of __process_mgmt_messages
 
