@@ -1,4 +1,4 @@
-import threading
+from threading import Thread
 from os import _exit as os_exit
 import inspect
 from kafkacrypto.utils import format_exception_shim
@@ -14,14 +14,6 @@ from kafkacrypto.message import KafkaCryptoMessage
 from kafkacrypto.ratchet import Ratchet
 from kafkacrypto.keygenerator import KeyGenerator
 from kafkacrypto.utils import log_limited, msgpack_default_pack
-
-_prev_excepthook = threading.excepthook
-def mgmt_deadhandler_excepthook(args):
-  if (not (args.thread is None) and args.thread.name == "kafkacrypto-mgmt-thread"):
-    print("Management thread died:", args.exc_value, ". Exiting.")
-    os_exit(1)
-  _prev_excepthook(args)
-threading.excepthook = mgmt_deadhandler_excepthook
 
 class KafkaCrypto(KafkaCryptoBase):
   """Class handling the sending and receiving of encrypted messages.
@@ -150,7 +142,7 @@ class KafkaCrypto(KafkaCryptoBase):
             # (but secret stays around so lost consumers can catch up)
 
     self._mgmt_thread_stop = False
-    self._mgmt_thread = threading.Thread(target=self._process_mgmt_messages,name="kafkacrypto-mgmt-thread",daemon=True)
+    self._mgmt_thread = Thread(target=self._process_mgmt_messages,name="kafkacrypto-mgmt-thread",daemon=True)
     self._mgmt_thread.start()
 
   def close(self):
@@ -175,226 +167,229 @@ class KafkaCrypto(KafkaCryptoBase):
   # durability is critical.
   def _process_mgmt_messages(self):
     while True:
-      if self._mgmt_thread_stop:
-        break
-      # First, process messages
-      # we are the only thread ever using _kc, _kp, so we do not need the lock to use them
-      msgs = self._kc.poll(timeout_ms=self.MGMT_POLL_INTERVAL, max_records=self.MGMT_POLL_RECORDS)
-      # but to actually process messages, we need the lock
-      for tp,msgset in msgs.items():
+      try:
+        if self._mgmt_thread_stop:
+          break
+        # First, process messages
+        # we are the only thread ever using _kc, _kp, so we do not need the lock to use them
+        msgs = self._kc.poll(timeout_ms=self.MGMT_POLL_INTERVAL, max_records=self.MGMT_POLL_RECORDS)
+        # but to actually process messages, we need the lock
+        for tp,msgset in msgs.items():
+          self._lock.acquire()
+          try:
+            for msg in msgset:
+              topic = msg.topic
+              if (isinstance(topic,(bytes,bytearray))):
+                self._logger.debug("passed a topic in bytes (should be string)")
+                topic = topic.decode('utf-8')
+              self._tps_offsets[topic] = msg.offset+1
+              self._logger.debug("Processing message: %s", msg)
+              if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
+                root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
+                # A new receiver: send all requested keys
+                try:
+                  kreq = msgpack.unpackb(msg.key,raw=True)
+                  if root in self._pgens.keys():
+                    ki = []
+                    s = []
+                    for ski,sk in self._pgens[root].items():
+                      if ski in kreq:
+                        ki.append(ski)
+                        s.append(sk['secret'])
+                    if len(ki) > 0:
+                      k = msgpack.packb(ki, default=msgpack_default_pack, use_bin_type=True)
+                      v2 = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
+                      if not (v2 is None):
+                        for v in v2:
+                          self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
+                          self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
+                      else:
+                        self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
+                    else:
+                      self._logger.info("No keys for root=%s to send to new receiver.", root)
+                except Exception as e:
+                  self._logger.warning("".join(format_exception_shim(e)))
+              elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
+                root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
+                # New key(s)
+                nks = self._cryptoexchange.decrypt_keys(root,msgval=msg.value)
+                if not (nks is None):
+                  for nki,nk in nks.items():
+                    self._logger.info("Received new encryption key for root=%s, key index=%s, msgkey=%s", root, nki, msg.key)
+                    # do not clopper other keys that may exist
+                    if not (root in self._cgens.keys()):
+                      self._cgens[root] = {}
+                    # but do clobber the same topic,keyID entry
+                    oldnki = self._cgens[root][nki] if nki in self._cgens[root] else {}
+                    try:
+                      self._cgens[root][nki] = {}
+                      self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
+                      self._cgens[root][nki]['secret'] = nk
+                      self._cgens[root][nki]['birth'] = time()
+                      # now that we have this key index, clear from request lists
+                      if root in self._cwaits.keys():
+                        self._cwaits[root].pop(nki, None)
+                    except Exception as e:
+                      self._cgens[root][nki] = oldnki
+                      self._logger.warning("".join(format_exception_shim(e)))
+                    if len(self._cgens[root][nki]) < 3:
+                      # cleanup incomplete entry
+                      self._cgens[root].pop(nki)
+                  if root in self._subs_last:
+                    eki = set(self._subs_last[root][1])
+                    eki.difference_update(set(nks.keys()))
+                    if len(eki) > 0:
+                      self._logger.warning("For root=%s, the keys %s were requested but not received.", root, eki)
+                    self._subs_last.pop(root,None)
+              elif topic == self.MGMT_TOPIC_CHAINS:
+                # New candidate public key chain
+                self._logger.info("Received new chain message: %s", msg)
+                for idx in range(0, self._cryptokey.get_num_spk()):
+                  if msg.key == bytes(self._cryptokey.get_spk(idx)):
+                    self._logger.debug("Key matches ours. Validating Chain.")
+                    newchain = self._cryptoexchange.replace_spk_chain(msg.value)
+                    if not (newchain is None):
+                      self._logger.info("New chain is superior, using it.")
+                      self._cryptostore.store_value('chain'+str(idx),newchain,section='chains')
+              elif topic == self.MGMT_TOPIC_ALLOWLIST:
+                self._logger.info("Received new allowlist message: %s", msg)
+                allow = self._cryptoexchange.add_allowlist(msg.value)
+                if not (allow is None):
+                  c = pysodium.crypto_hash_sha256(allow)
+                  self._cryptostore.store_value(c,allow,section='allowlist')
+              elif topic == self.MGMT_TOPIC_DENYLIST:
+                self._logger.info("Received new denylist message: %s", msg)
+                deny = self._cryptoexchange.add_denylist(msg.value)
+                if not (deny is None):
+                  c = pysodium.crypto_hash_sha256(deny)
+       	          self._cryptostore.store_value(c,deny,section='denylist')
+              else:
+                # unknown object
+                log_limited(self._logger.warning, "Unknown topic type in message: %s", msg)
+          finally:
+            self._lock.release()
+
+        # Flush producer
+        try:
+          self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+        except Exception as e:
+          self._logger.warning("".join(format_exception_shim(e)))
+
+        # Second, deal with subscription changes
         self._lock.acquire()
         try:
-          for msg in msgset:
-            topic = msg.topic
-            if (isinstance(topic,(bytes,bytearray))):
-              self._logger.debug("passed a topic in bytes (should be string)")
-              topic = topic.decode('utf-8')
-            self._tps_offsets[topic] = msg.offset+1
-            self._logger.debug("Processing message: %s", msg)
-            if topic[-len(self.TOPIC_SUFFIX_REQS):] == self.TOPIC_SUFFIX_REQS:
-              root = topic[:-len(self.TOPIC_SUFFIX_REQS)]
-              # A new receiver: send all requested keys
-              try:
-                kreq = msgpack.unpackb(msg.key,raw=True)
-                if root in self._pgens.keys():
-                  ki = []
-                  s = []
-                  for ski,sk in self._pgens[root].items():
-                    if ski in kreq:
-                      ki.append(ski)
-                      s.append(sk['secret'])
-                  if len(ki) > 0:
-                    k = msgpack.packb(ki, default=msgpack_default_pack, use_bin_type=True)
-                    v2 = self._cryptoexchange.encrypt_keys(ki, s, root, msgval=msg.value)
-                    if not (v2 is None):
-                      for v in v2:
-                        self._logger.info("Sending current encryption keys for root=%s to new receiver, msgkey=%s.", root, k)
-                        self._kp.send(root + self.TOPIC_SUFFIX_KEYS, key=k, value=v)
-                    else:
-                      self._logger.info("Failed sending current encryption keys for root=%s to new receiver.", root)
-                  else:
-                    self._logger.info("No keys for root=%s to send to new receiver.", root)
-              except Exception as e:
-                self._logger.warning("".join(format_exception_shim(e)))
-            elif topic[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS:
-              root = topic[:-len(self.TOPIC_SUFFIX_KEYS)]
-              # New key(s)
-              nks = self._cryptoexchange.decrypt_keys(root,msgval=msg.value)
-              if not (nks is None):
-                for nki,nk in nks.items():
-                  self._logger.info("Received new encryption key for root=%s, key index=%s, msgkey=%s", root, nki, msg.key)
-                  # do not clopper other keys that may exist
-                  if not (root in self._cgens.keys()):
-                    self._cgens[root] = {}
-                  # but do clobber the same topic,keyID entry
-                  oldnki = self._cgens[root][nki] if nki in self._cgens[root] else {}
-                  try:
-                    self._cgens[root][nki] = {}
-                    self._cgens[root][nki]['key'], self._cgens[root][nki]['value'] = KeyGenerator.get_key_value_generators(nk)
-                    self._cgens[root][nki]['secret'] = nk
-                    self._cgens[root][nki]['birth'] = time()
-                    # now that we have this key index, clear from request lists
-                    if root in self._cwaits.keys():
-                      self._cwaits[root].pop(nki, None)
-                  except Exception as e:
-                    self._cgens[root][nki] = oldnki
-                    self._logger.warning("".join(format_exception_shim(e)))
-                  if len(self._cgens[root][nki]) < 3:
-                    # cleanup incomplete entry
-                    self._cgens[root].pop(nki)
-                if root in self._subs_last:
-                  eki = set(self._subs_last[root][1])
-                  eki.difference_update(set(nks.keys()))
-                  if len(eki) > 0:
-                    self._logger.warning("For root=%s, the keys %s were requested but not received.", root, eki)
-                  self._subs_last.pop(root,None)
-            elif topic == self.MGMT_TOPIC_CHAINS:
-              # New candidate public key chain
-              self._logger.info("Received new chain message: %s", msg)
-              for idx in range(0, self._cryptokey.get_num_spk()):
-                if msg.key == bytes(self._cryptokey.get_spk(idx)):
-                  self._logger.debug("Key matches ours. Validating Chain.")
-                  newchain = self._cryptoexchange.replace_spk_chain(msg.value)
-                  if not (newchain is None):
-                    self._logger.info("New chain is superior, using it.")
-                    self._cryptostore.store_value('chain'+str(idx),newchain,section='chains')
-            elif topic == self.MGMT_TOPIC_ALLOWLIST:
-              self._logger.info("Received new allowlist message: %s", msg)
-              allow = self._cryptoexchange.add_allowlist(msg.value)
-              if not (allow is None):
-                c = pysodium.crypto_hash_sha256(allow)
-                self._cryptostore.store_value(c,allow,section='allowlist')
-            elif topic == self.MGMT_TOPIC_DENYLIST:
-              self._logger.info("Received new denylist message: %s", msg)
-              deny = self._cryptoexchange.add_denylist(msg.value)
-              if not (deny is None):
-                c = pysodium.crypto_hash_sha256(deny)
-       	        self._cryptostore.store_value(c,deny,section='denylist')
-            else:
-              # unknown object
-              log_limited(self._logger.warning, "Unknown topic type in message: %s", msg)
+          self._logger.debug("Processing subscription changes.")
+          if self._tps_updated == True:
+            self._logger.debug("Subscriptions changed, adjusting.")
+            tpo = []
+            for tk in self._tps.keys():
+              tpo.append(TopicPartitionOffset(self._tps[tk].topic, self._tps[tk].partition, self._tps_offsets[tk]))
+            self._kc.assign_and_seek(tpo)
+            self._logger.debug("Subscriptions adjusted.")
+            if (self._kc.config['group_id'] is None):
+              self._logger.info("No group_id, seeking to beginning.")
+              self._kc.seek_to_beginning()
+            for tk in self._tps.keys():
+              if (tk[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS):
+                root = tk[:-len(self.TOPIC_SUFFIX_KEYS)]
+                if not (root in self._subs_needed):
+                  self._subs_needed.append(root)
+            self._tps_updated = False
         finally:
           self._lock.release()
 
-      # Flush producer
-      try:
-        self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
-      except Exception as e:
-        self._logger.warning("".join(format_exception_shim(e)))
+        # Third, deal with topics needing subscriptions
+        self._lock.acquire()
+        try:
+          self._logger.debug("Process subscriptions.")
+          subs_needed_next = []
 
-      # Second, deal with subscription changes
-      self._lock.acquire()
-      try:
-        self._logger.debug("Processing subscription changes.")
-        if self._tps_updated == True:
-          self._logger.debug("Subscriptions changed, adjusting.")
-          tpo = []
-          for tk in self._tps.keys():
-            tpo.append(TopicPartitionOffset(self._tps[tk].topic, self._tps[tk].partition, self._tps_offsets[tk]))
-          self._kc.assign_and_seek(tpo)
-          self._logger.debug("Subscriptions adjusted.")
-          if (self._kc.config['group_id'] is None):
-            self._logger.info("No group_id, seeking to beginning.")
-            self._kc.seek_to_beginning()
-          for tk in self._tps.keys():
-            if (tk[-len(self.TOPIC_SUFFIX_KEYS):] == self.TOPIC_SUFFIX_KEYS):
-              root = tk[:-len(self.TOPIC_SUFFIX_KEYS)]
-              if not (root in self._subs_needed):
-                self._subs_needed.append(root)
-          self._tps_updated = False
-      finally:
-        self._lock.release()
+          # periodically prune key indices that are past age expiry
+          curtime = time()
+          for root in self._cgens:
+            self._cgens[root] = { k: v for k, v in self._cgens[root].items() if v['birth']+self.CRYPTO_MAX_CGEN_AGE>=curtime }
 
-      # Third, deal with topics needing subscriptions
-      self._lock.acquire()
-      try:
-        self._logger.debug("Process subscriptions.")
-        subs_needed_next = []
-
-        # periodically prune key indices that are past age expiry
-        curtime = time()
-        for root in self._cgens:
-          self._cgens[root] = { k: v for k, v in self._cgens[root].items() if v['birth']+self.CRYPTO_MAX_CGEN_AGE>=curtime }
-
-        # Get subscriptions
-        for root in self._subs_needed:
-          if root in self._cwaits.keys():
-            self._logger.debug("Attempting (Re)subscribe to root=%s", root)
-            # periodically prune key indices we are waiting on, dropping those never received
-            curtime = time()
-            self._cwaits[root] = { k: v for k, v in self._cwaits[root].items() if v[1]+self.MGMT_KEYINDEX_WAIT_MAX_SECS>=curtime }
-            kis = list(self._cwaits[root].keys())
-            if len(kis) > 0:
-              if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
-                k = msgpack.packb(kis, default=msgpack_default_pack, use_bin_type=True)
-                v2 = self._cryptoexchange.signed_epks(root)
-                if not (k is None) and not (v2 is None):
-                  self._logger.info("Sending new subscribe request(s) for root=%s, msgkey=%s", root, k)
-                  for v in v2:
-                    self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v[0])
-                    if v[1]:
-                      # if it may succeed, send directly as well
-                      self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v[0])
-                  self._subs_last[root] = [time(),kis]
+          # Get subscriptions
+          for root in self._subs_needed:
+            if root in self._cwaits.keys():
+              self._logger.debug("Attempting (Re)subscribe to root=%s", root)
+              # periodically prune key indices we are waiting on, dropping those never received
+              curtime = time()
+              self._cwaits[root] = { k: v for k, v in self._cwaits[root].items() if v[1]+self.MGMT_KEYINDEX_WAIT_MAX_SECS>=curtime }
+              kis = list(self._cwaits[root].keys())
+              if len(kis) > 0:
+                if (not (root in self._subs_last.keys()) or self._subs_last[root][0]+self.CRYPTO_SUB_INTERVAL<time()):
+                  k = msgpack.packb(kis, default=msgpack_default_pack, use_bin_type=True)
+                  v2 = self._cryptoexchange.signed_epks(root)
+                  if not (k is None) and not (v2 is None):
+                    self._logger.info("Sending new subscribe request(s) for root=%s, msgkey=%s", root, k)
+                    for v in v2:
+                      self._kp.send(root + self.TOPIC_SUFFIX_SUBS, key=k, value=v[0])
+                      if v[1]:
+                        # if it may succeed, send directly as well
+                        self._kp.send(root + self.TOPIC_SUFFIX_REQS, key=k, value=v[0])
+                    self._subs_last[root] = [time(),kis]
+                  else:
+                    self._logger.info("Failed to send new subscribe request for root=%s", root)
+                    subs_needed_next.append(root)
                 else:
-                  self._logger.info("Failed to send new subscribe request for root=%s", root)
+                  self._logger.debug("Deferring (re)subscriptions for root=%s due to pending key request.", root)
                   subs_needed_next.append(root)
               else:
-                self._logger.debug("Deferring (re)subscriptions for root=%s due to pending key request.", root)
-                subs_needed_next.append(root)
-            else:
-              self._logger.debug("No new keys needed for root=%s", root)
-        self._subs_needed = subs_needed_next
-      finally:
-        self._lock.release()
+                self._logger.debug("No new keys needed for root=%s", root)
+          self._subs_needed = subs_needed_next
+        finally:
+          self._lock.release()
 
-      # Flush producer
-      try:
-        self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
-      except Exception as e:
-        self._logger.warning("".join(format_exception_shim(e)))
+        # Flush producer
+        try:
+          self._kp.flush(timeout=self.MGMT_FLUSH_TIME)
+        except Exception as e:
+          self._logger.warning("".join(format_exception_shim(e)))
 
-      # Fourth, periodically increment ratchet and prune old keys
-      self._logger.debug("Checking ratchet time.")
-      self._lock.acquire()
-      try:
-        if self._last_time+self.CRYPTO_RATCHET_INTERVAL < time():
-          self._logger.info("Periodic ratchet increment.")
-          self._last_time = time()
-          # prune
-          for root,pgens in self._pgens.items():
-            rki = []
-            for ki,kv in pgens.items():
-              if (kv['birth']+self.CRYPTO_MAX_PGEN_AGE<time()):
-                rki.append(ki)
-            for ki in rki:
-              self._pgens[root].pop(ki)
-          # increment
-          self._cur_pgens = {}
-          self._seed.increment()
-      finally:
-        self._lock.release()
+        # Fourth, periodically increment ratchet and prune old keys
+        self._logger.debug("Checking ratchet time.")
+        self._lock.acquire()
+        try:
+          if self._last_time+self.CRYPTO_RATCHET_INTERVAL < time():
+            self._logger.info("Periodic ratchet increment.")
+            self._last_time = time()
+            # prune
+            for root,pgens in self._pgens.items():
+              rki = []
+              for ki,kv in pgens.items():
+                if (kv['birth']+self.CRYPTO_MAX_PGEN_AGE<time()):
+                  rki.append(ki)
+              for ki in rki:
+                self._pgens[root].pop(ki)
+            # increment
+            self._cur_pgens = {}
+            self._seed.increment()
+        finally:
+          self._lock.release()
 
-      # Fifth, write new producer keys if requested
-      self._logger.debug("Checking producer keys.")
-      self._lock.acquire()
-      try:
-        if self._new_pgens:
-          self._logger.info("(Re)writing producer keys.")
-          self._new_pgens = False
-          kvs = {}
-          kvs['pgens'] = []
-          for root,pgens in self._pgens.items():
-            for ki,kv in pgens.items():
-              kvs['pgens'].append([root,ki,kv['secret'],kv['birth']])
-              # stored pgens do not have generators as they should never be used for active production
-              # (but secret stays around so lost consumers can catch up)
-          self._logger.info("Saving %s old production keys.", len(kvs['pgens']))
-          self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs, default=msgpack_default_pack, use_bin_type=True),section="crypto")
-      finally:
-        self._lock.release()
+        # Fifth, write new producer keys if requested
+        self._logger.debug("Checking producer keys.")
+        self._lock.acquire()
+        try:
+          if self._new_pgens:
+            self._logger.info("(Re)writing producer keys.")
+            self._new_pgens = False
+            kvs = {}
+            kvs['pgens'] = []
+            for root,pgens in self._pgens.items():
+              for ki,kv in pgens.items():
+                kvs['pgens'].append([root,ki,kv['secret'],kv['birth']])
+                # stored pgens do not have generators as they should never be used for active production
+                # (but secret stays around so lost consumers can catch up)
+            self._logger.info("Saving %s old production keys.", len(kvs['pgens']))
+            self._cryptostore.store_opaque_value('oldkeys',msgpack.packb(kvs, default=msgpack_default_pack, use_bin_type=True),section="crypto")
+        finally:
+          self._lock.release()
 
-      # Finally, loop back to poll again
+        # Finally, loop back to poll again
+      except:
+        os_exit(1)
   # end of __process_mgmt_messages
 
   #
