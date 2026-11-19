@@ -278,21 +278,29 @@ def process_chain(chain, topic=None, usage=None, allowlist=None, denylist=None, 
           denylisted = False
         if key_in_list(pk[2],denylist)!=None:
           denylisted = True
-      else:
+      elif denylisted:
+        # If the parent is denylisted, we only accept explicitly allowlisted keys
         pkn = []
         for pkone in pk[2]:
           if isinstance(pkone,(SignPublicKey,)) and key_in_list(pkone,allowlist):
             # override parent denies
-            denylisted = False
+            pkn.append(pkone)
+        if len(pkn) > 0:
+          denylisted = False
+          pk[2] = pkn
+      else: # not denylisted
+        # Here we keep all but denylisted keys
+        pkn = []
+        for pkone in pk[2]:
           if isinstance(pkone,(SignPublicKey,)) and key_in_list(pkone,denylist):
             # do not use
             pass
           else:
             pkn.append(pkone)
-        if len(pkn) < 1:
-          denylisted = True
-        else:
+        if len(pkn) > 0:
           pk[2] = pkn
+        else:
+          denylisted = True
       # make sure our chain doesn't have breaking denylisted keys
       if denylisted:
         raise ValueError("Chain uses denylisted public key")
